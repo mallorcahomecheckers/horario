@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Horario 2026"/>
+  <meta name="theme-color" content="#1e293b"/>
+  <title>Horario 2026</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f8fafc;min-height:100vh;overscroll-behavior:none;}
+    button{font-family:inherit;cursor:pointer;}
+    select,input,textarea{font-family:inherit;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
+
+    /* Header */
+    #header{background:#1e293b;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10;}
+    #header-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;gap:10;}
+    #header-title{font-weight:800;font-size:17px;}
+    #header-sub{font-size:12px;color:#94a3b8;margin-top:2px;display:flex;gap:10;flex-wrap:wrap;}
+    #settings-btn{background:#334155;border:none;border-radius:8px;padding:7px 12px;color:#94a3b8;font-size:14px;flex-shrink:0;}
+    #sync-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;transition:background 0.3s;}
+    #sync-dot.syncing{background:#f59e0b;animation:pulse 1s infinite;}
+    #sync-dot.offline{background:#ef4444;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+    /* Month filter */
+    #month-bar{background:#fff;border-bottom:1px solid #e5e7eb;overflow-x:auto;padding:10px 16px;-webkit-overflow-scrolling:touch;}
+    #month-pills{display:flex;gap:6px;width:max-content;}
+    .pill{border-radius:20px;padding:5px 14px;font-size:13px;border:none;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+    .pill.active{background:#1e293b;color:#fff;font-weight:700;}
+    .pill.inactive{background:#f1f5f9;color:#64748b;font-weight:500;}
+
+    /* Day list */
+    #list{max-width:600px;margin:0 auto;padding:16px 12px 100px;}
+    .week-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px;flex-wrap:wrap;}
+    .week-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;}
+    .week-line{flex:1;height:1px;background:#e5e7eb;}
+    .week-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+    .week-group{margin-bottom:24px;}
+    .days-col{display:flex;flex-direction:column;gap:6px;}
+
+    /* Day card */
+    .day-card{border-radius:12px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12;transition:box-shadow 0.12s;border-width:1.5px;border-style:solid;}
+    .day-card:active{box-shadow:0 2px 12px rgba(0,0,0,0.1);}
+    .day-num{text-align:center;min-width:34px;}
+    .day-weekday{font-size:11px;text-transform:capitalize;font-weight:600;}
+    .day-n{font-size:20px;font-weight:800;line-height:1;}
+    .day-month{font-size:10px;color:#9ca3af;}
+    .day-people{flex:1;display:flex;flex-direction:column;gap:3px;}
+    .person-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+    .avatar-sm{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:8px;flex-shrink:0;}
+    .chevron{color:#cbd5e1;font-size:16px;}
+
+    /* Modal */
+    #modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:999;}
+    #modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:min(520px,100%);max-height:92vh;overflow-y:auto;padding-bottom:32px;}
+    #modal-header{padding:18px 20px 12px;border-bottom:1.5px solid #f1f5f9;position:sticky;top:0;background:#fff;border-radius:20px 20px 0 0;z-index:2;}
+    .close-btn{background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;color:#64748b;display:flex;align-items:center;justify-content:center;}
+    .person-card{border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-width:1.5px;border-style:solid;}
+    .person-card-row{display:flex;align-items:center;gap:10;}
+    .avatar-lg{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;}
+    .action-btns{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
+    .btn-hora{font-size:12px;font-weight:700;border-radius:7px;padding:5px 10px;white-space:nowrap;border-width:1.5px;border-style:solid;}
+    .btn-vac{font-size:11px;font-weight:600;border-radius:7px;padding:4px 8px;white-space:nowrap;border-width:1px;border-style:solid;}
+
+    /* Edit form */
+    .form-section{padding:14px 20px;}
+    .back-btn{display:flex;align-items:center;gap:6px;background:none;border:none;color:#64748b;font-size:14px;margin-bottom:14px;padding:0;}
+    .time-row{display:flex;gap:12px;margin-bottom:14px;}
+    .time-col{flex:1;}
+    .time-label{font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:700;text-transform:uppercase;}
+    .time-selects{display:flex;gap:6px;align-items:center;}
+    .time-select{flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 6px;font-size:17px;text-align:center;background:#f8fafc;}
+    .hours-result{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:700;color:#16a34a;font-size:16px;}
+    .note-label{font-size:11px;color:#6b7280;margin-bottom:4px;font-weight:700;text-transform:uppercase;}
+    textarea{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;font-size:14px;resize:vertical;}
+    .form-btns{display:flex;gap:8px;margin-top:16px;}
+    .btn-save{flex:1;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:15px;transition:background 0.2s;}
+    .btn-clear{background:#fff;color:#ef4444;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 16px;font-weight:600;font-size:14px;}
+
+    /* Balance bar */
+    .bal-bar{border-radius:10px;padding:8px 12px;border-width:1.5px;border-style:solid;}
+    .bal-bar-row{display:flex;justify-content:space-between;margin-bottom:5px;}
+    .bal-track{height:6px;border-radius:4px;background:#e2e8f0;overflow:hidden;}
+    .bal-fill{height:100%;border-radius:4px;transition:width 0.3s;}
+    .bal-badge{font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;white-space:nowrap;border-width:1px;border-style:solid;}
+
+    /* Settings */
+    #settings-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;}
+    #settings-sheet{background:#fff;border-radius:16px;width:min(440px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+    #settings-header{padding:16px 20px 10px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;border-radius:16px 16px 0 0;z-index:2;}
+    .tab-bar{display:flex;border-bottom:1px solid #f1f5f9;padding:0 20px;}
+    .tab-btn{background:none;border:none;border-bottom:3px solid transparent;font-size:13px;padding:10px 14px;cursor:pointer;}
+    .tab-btn.active{border-bottom-color:#2563eb;color:#2563eb;font-weight:700;}
+    .tab-btn.inactive{color:#64748b;font-weight:500;}
+
+    /* Loading */
+    #loading{position:fixed;inset:0;background:#1e293b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:9999;}
+    #loading h1{font-size:24px;font-weight:800;margin-bottom:8px;}
+    #loading p{color:#94a3b8;font-size:14px;}
+    .spinner{width:32px;height:32px;border:3px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* Toast */
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1e293b;color:#fff;padding:10px 20px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;transition:transform 0.3s;white-space:nowrap;}
+    #toast.show{transform:translateX(-50%) translateY(0);}
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <h1>📋 Horario 2026</h1>
+  <p>Conectando...</p>
+</div>
+
+<div id="toast"></div>
+
+<div id="app" style="display:none;">
+  <div id="header">
+    <div id="header-inner">
+      <div style="flex:1;">
+        <div id="header-title">📋 Horario 2026</div>
+        <div id="header-sub"></div>
+      </div>
+      <div id="sync-dot" title="Sincronizado"></div>
+      <button id="settings-btn" onclick="openSettings()">⚙️</button>
+    </div>
+  </div>
+
+  <div id="month-bar">
+    <div id="month-pills"></div>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<!-- Modal día -->
+<div id="modal-backdrop" style="display:none;" onclick="handleBackdropClick(event)">
+  <div id="modal-sheet">
+    <div id="modal-header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div id="modal-title" style="font-weight:800;font-size:20px;color:#0f172a;text-transform:capitalize;"></div>
+          <div id="modal-sub" style="font-size:13px;color:#64748b;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px;"></div>
+        </div>
+        <button class="close-btn" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settings-backdrop" style="display:none;" onclick="handleSettingsBackdrop(event)">
+  <div id="settings-sheet">
+    <div id="settings-header">
+      <div style="font-weight:800;font-size:17px;">⚙️ Configuración</div>
+      <button class="close-btn" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('personal')" id="tab-personal">👤 Personal</button>
+      <button class="tab-btn inactive" onclick="switchTab('festivos')" id="tab-festivos">🎉 Festivos</button>
+    </div>
+    <div id="settings-body" style="padding:16px 20px;"></div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ── Firebase config ──────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDiv5SbDfveNgrEoYUmwMKlU6PF90m6OSk",
+  authDomain: "mhc-app-184e9.firebaseapp.com",
+  projectId: "mhc-app-184e9",
+  storageBucket: "mhc-app-184e9.firebasestorage.app",
+  messagingSenderId: "564434438421",
+  appId: "1:564434438421:web:a4628396a190fd894b011c",
+  databaseURL: "https://mhc-app-184e9-default-rtdb.europe-west1.firebasedatabase.app"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+
+// ── Calendar data ────────────────────────────────────────────────────────
+const CALENDAR_DATA = [
+  {fecha:"2025-12-29",semana:1,dia:"lunes",casa:"12"},{fecha:"2025-12-30",semana:1,dia:"martes",casa:"12"},{fecha:"2025-12-31",semana:1,dia:"miércoles",casa:"12"},
+  {fecha:"2026-01-01",semana:1,dia:"jueves",casa:"1"},{fecha:"2026-01-02",semana:1,dia:"viernes",casa:"1"},{fecha:"2026-01-03",semana:1,dia:"sábado",casa:"1"},{fecha:"2026-01-04",semana:1,dia:"domingo",casa:"1"},
+  {fecha:"2026-01-05",semana:2,dia:"lunes",casa:"1"},{fecha:"2026-01-06",semana:2,dia:"martes",casa:"1"},{fecha:"2026-01-07",semana:2,dia:"miércoles",casa:"1"},{fecha:"2026-01-08",semana:2,dia:"jueves",casa:"1"},{fecha:"2026-01-09",semana:2,dia:"viernes",casa:"1"},{fecha:"2026-01-10",semana:2,dia:"sábado",casa:"1"},{fecha:"2026-01-11",semana:2,dia:"domingo",casa:"1"},
+  {fecha:"2026-01-12",semana:3,dia:"lunes",casa:"1"},{fecha:"2026-01-13",semana:3,dia:"martes",casa:"1"},{fecha:"2026-01-14",semana:3,dia:"miércoles",casa:"1"},{fecha:"2026-01-15",semana:3,dia:"jueves",casa:"1"},{fecha:"2026-01-16",semana:3,dia:"viernes",casa:"1"},{fecha:"2026-01-17",semana:3,dia:"sábado",casa:"1"},{fecha:"2026-01-18",semana:3,dia:"domingo",casa:"1"},
+  {fecha:"2026-01-19",semana:4,dia:"lunes",casa:"1"},{fecha:"2026-01-20",semana:4,dia:"martes",casa:"1"},{fecha:"2026-01-21",semana:4,dia:"miércoles",casa:"1"},{fecha:"2026-01-22",semana:4,dia:"jueves",casa:"1"},{fecha:"2026-01-23",semana:4,dia:"viernes",casa:"1"},{fecha:"2026-01-24",semana:4,dia:"sábado",casa:"1"},{fecha:"2026-01-25",semana:4,dia:"domingo",casa:"1"},
+  {fecha:"2026-01-26",semana:5,dia:"lunes",casa:"1"},{fecha:"2026-01-27",semana:5,dia:"martes",casa:"1"},{fecha:"2026-01-28",semana:5,dia:"miércoles",casa:"1"},{fecha:"2026-01-29",semana:5,dia:"jueves",casa:"1"},{fecha:"2026-01-30",semana:5,dia:"viernes",casa:"1"},{fecha:"2026-01-31",semana:5,dia:"sábado",casa:"1"},
+  {fecha:"2026-02-01",semana:5,dia:"domingo",casa:"2"},{fecha:"2026-02-02",semana:6,dia:"lunes",casa:"2"},{fecha:"2026-02-03",semana:6,dia:"martes",casa:"2"},{fecha:"2026-02-04",semana:6,dia:"miércoles",casa:"2"},{fecha:"2026-02-05",semana:6,dia:"jueves",casa:"2"},{fecha:"2026-02-06",semana:6,dia:"viernes",casa:"2"},{fecha:"2026-02-07",semana:6,dia:"sábado",casa:"2"},{fecha:"2026-02-08",semana:6,dia:"domingo",casa:"2"},
+  {fecha:"2026-02-09",semana:7,dia:"lunes",casa:"2"},{fecha:"2026-02-10",semana:7,dia:"martes",casa:"2"},{fecha:"2026-02-11",semana:7,dia:"miércoles",casa:"2"},{fecha:"2026-02-12",semana:7,dia:"jueves",casa:"2"},{fecha:"2026-02-13",semana:7,dia:"viernes",casa:"2"},{fecha:"2026-02-14",semana:7,dia:"sábado",casa:"2"},{fecha:"2026-02-15",semana:7,dia:"domingo",casa:"2"},
+  {fecha:"2026-02-16",semana:8,dia:"lunes",casa:"2"},{fecha:"2026-02-17",semana:8,dia:"martes",casa:"2"},{fecha:"2026-02-18",semana:8,dia:"miércoles",casa:"2"},{fecha:"2026-02-19",semana:8,dia:"jueves",casa:"2"},{fecha:"2026-02-20",semana:8,dia:"viernes",casa:"2"},{fecha:"2026-02-21",semana:8,dia:"sábado",casa:"2"},{fecha:"2026-02-22",semana:8,dia:"domingo",casa:"2"},
+  {fecha:"2026-02-23",semana:9,dia:"lunes",casa:"2"},{fecha:"2026-02-24",semana:9,dia:"martes",casa:"2"},{fecha:"2026-02-25",semana:9,dia:"miércoles",casa:"2"},{fecha:"2026-02-26",semana:9,dia:"jueves",casa:"2"},{fecha:"2026-02-27",semana:9,dia:"viernes",casa:"2"},{fecha:"2026-02-28",semana:9,dia:"sábado",casa:"2"},
+  {fecha:"2026-03-01",semana:9,dia:"domingo",casa:"3"},{fecha:"2026-03-02",semana:10,dia:"lunes",casa:"3"},{fecha:"2026-03-03",semana:10,dia:"martes",casa:"3"},{fecha:"2026-03-04",semana:10,dia:"miércoles",casa:"3"},{fecha:"2026-03-05",semana:10,dia:"jueves",casa:"3"},{fecha:"2026-03-06",semana:10,dia:"viernes",casa:"3"},{fecha:"2026-03-07",semana:10,dia:"sábado",casa:"3"},{fecha:"2026-03-08",semana:10,dia:"domingo",casa:"3"},
+  {fecha:"2026-03-09",semana:11,dia:"lunes",casa:"3"},{fecha:"2026-03-10",semana:11,dia:"martes",casa:"3"},{fecha:"2026-03-11",semana:11,dia:"miércoles",casa:"3"},{fecha:"2026-03-12",semana:11,dia:"jueves",casa:"3"},{fecha:"2026-03-13",semana:11,dia:"viernes",casa:"3"},{fecha:"2026-03-14",semana:11,dia:"sábado",casa:"3"},{fecha:"2026-03-15",semana:11,dia:"domingo",casa:"3"},
+  {fecha:"2026-03-16",semana:12,dia:"lunes",casa:"3"},{fecha:"2026-03-17",semana:12,dia:"martes",casa:"3"},{fecha:"2026-03-18",semana:12,dia:"miércoles",casa:"3"},{fecha:"2026-03-19",semana:12,dia:"jueves",casa:"3"},{fecha:"2026-03-20",semana:12,dia:"viernes",casa:"3"},{fecha:"2026-03-21",semana:12,dia:"sábado",casa:"3"},{fecha:"2026-03-22",semana:12,dia:"domingo",casa:"3"},
+  {fecha:"2026-03-23",semana:13,dia:"lunes",casa:"3"},{fecha:"2026-03-24",semana:13,dia:"martes",casa:"3"},{fecha:"2026-03-25",semana:13,dia:"miércoles",casa:"3"},{fecha:"2026-03-26",semana:13,dia:"jueves",casa:"3"},{fecha:"2026-03-27",semana:13,dia:"viernes",casa:"3"},{fecha:"2026-03-28",semana:13,dia:"sábado",casa:"3"},{fecha:"2026-03-29",semana:13,dia:"domingo",casa:"3"},{fecha:"2026-03-30",semana:13,dia:"lunes",casa:"3"},{fecha:"2026-03-31",semana:13,dia:"martes",casa:"3"},
+  {fecha:"2026-04-01",semana:14,dia:"miércoles",casa:"4"},{fecha:"2026-04-02",semana:14,dia:"jueves",casa:"4"},{fecha:"2026-04-03",semana:14,dia:"viernes",casa:"4"},{fecha:"2026-04-04",semana:14,dia:"sábado",casa:"4"},{fecha:"2026-04-05",semana:14,dia:"domingo",casa:"4"},
+  {fecha:"2026-04-06",semana:15,dia:"lunes",casa:"4"},{fecha:"2026-04-07",semana:15,dia:"martes",casa:"4"},{fecha:"2026-04-08",semana:15,dia:"miércoles",casa:"4"},{fecha:"2026-04-09",semana:15,dia:"jueves",casa:"4"},{fecha:"2026-04-10",semana:15,dia:"viernes",casa:"4"},{fecha:"2026-04-11",semana:15,dia:"sábado",casa:"4"},{fecha:"2026-04-12",semana:15,dia:"domingo",casa:"4"},
+  {fecha:"2026-04-13",semana:16,dia:"lunes",casa:"4"},{fecha:"2026-04-14",semana:16,dia:"martes",casa:"4"},{fecha:"2026-04-15",semana:16,dia:"miércoles",casa:"4"},{fecha:"2026-04-16",semana:16,dia:"jueves",casa:"4"},{fecha:"2026-04-17",semana:16,dia:"viernes",casa:"4"},{fecha:"2026-04-18",semana:16,dia:"sábado",casa:"4"},{fecha:"2026-04-19",semana:16,dia:"domingo",casa:"4"},
+  {fecha:"2026-04-20",semana:17,dia:"lunes",casa:"4"},{fecha:"2026-04-21",semana:17,dia:"martes",casa:"4"},{fecha:"2026-04-22",semana:17,dia:"miércoles",casa:"4"},{fecha:"2026-04-23",semana:17,dia:"jueves",casa:"4"},{fecha:"2026-04-24",semana:17,dia:"viernes",casa:"4"},{fecha:"2026-04-25",semana:17,dia:"sábado",casa:"4"},{fecha:"2026-04-26",semana:17,dia:"domingo",casa:"4"},
+  {fecha:"2026-04-27",semana:18,dia:"lunes",casa:"4"},{fecha:"2026-04-28",semana:18,dia:"martes",casa:"4"},{fecha:"2026-04-29",semana:18,dia:"miércoles",casa:"4"},{fecha:"2026-04-30",semana:18,dia:"jueves",casa:"4"},
+  {fecha:"2026-05-01",semana:18,dia:"viernes",casa:"5"},{fecha:"2026-05-02",semana:18,dia:"sábado",casa:"5"},{fecha:"2026-05-03",semana:18,dia:"domingo",casa:"5"},
+  {fecha:"2026-05-04",semana:19,dia:"lunes",casa:"5"},{fecha:"2026-05-05",semana:19,dia:"martes",casa:"5"},{fecha:"2026-05-06",semana:19,dia:"miércoles",casa:"5"},{fecha:"2026-05-07",semana:19,dia:"jueves",casa:"5"},{fecha:"2026-05-08",semana:19,dia:"viernes",casa:"5"},{fecha:"2026-05-09",semana:19,dia:"sábado",casa:"5"},{fecha:"2026-05-10",semana:19,dia:"domingo",casa:"5"},
+  {fecha:"2026-05-11",semana:20,dia:"lunes",casa:"5"},{fecha:"2026-05-12",semana:20,dia:"martes",casa:"5"},{fecha:"2026-05-13",semana:20,dia:"miércoles",casa:"5"},{fecha:"2026-05-14",semana:20,dia:"jueves",casa:"5"},{fecha:"2026-05-15",semana:20,dia:"viernes",casa:"5"},{fecha:"2026-05-16",semana:20,dia:"sábado",casa:"5"},{fecha:"2026-05-17",semana:20,dia:"domingo",casa:"5"},
+  {fecha:"2026-05-18",semana:21,dia:"lunes",casa:"5"},{fecha:"2026-05-19",semana:21,dia:"martes",casa:"5"},{fecha:"2026-05-20",semana:21,dia:"miércoles",casa:"5"},{fecha:"2026-05-21",semana:21,dia:"jueves",casa:"5"},{fecha:"2026-05-22",semana:21,dia:"viernes",casa:"5"},{fecha:"2026-05-23",semana:21,dia:"sábado",casa:"5"},{fecha:"2026-05-24",semana:21,dia:"domingo",casa:"5"},
+  {fecha:"2026-05-25",semana:22,dia:"lunes",casa:"5"},{fecha:"2026-05-26",semana:22,dia:"martes",casa:"5"},{fecha:"2026-05-27",semana:22,dia:"miércoles",casa:"5"},{fecha:"2026-05-28",semana:22,dia:"jueves",casa:"5"},{fecha:"2026-05-29",semana:22,dia:"viernes",casa:"5"},{fecha:"2026-05-30",semana:22,dia:"sábado",casa:"5"},{fecha:"2026-05-31",semana:22,dia:"domingo",casa:"5"},
+  {fecha:"2026-06-01",semana:23,dia:"lunes",casa:"6"},{fecha:"2026-06-02",semana:23,dia:"martes",casa:"6"},{fecha:"2026-06-03",semana:23,dia:"miércoles",casa:"6"},{fecha:"2026-06-04",semana:23,dia:"jueves",casa:"6"},{fecha:"2026-06-05",semana:23,dia:"viernes",casa:"6"},{fecha:"2026-06-06",semana:23,dia:"sábado",casa:"6"},{fecha:"2026-06-07",semana:23,dia:"domingo",casa:"6"},
+  {fecha:"2026-06-08",semana:24,dia:"lunes",casa:"6"},{fecha:"2026-06-09",semana:24,dia:"martes",casa:"6"},{fecha:"2026-06-10",semana:24,dia:"miércoles",casa:"6"},{fecha:"2026-06-11",semana:24,dia:"jueves",casa:"6"},{fecha:"2026-06-12",semana:24,dia:"viernes",casa:"6"},{fecha:"2026-06-13",semana:24,dia:"sábado",casa:"6"},{fecha:"2026-06-14",semana:24,dia:"domingo",casa:"6"},
+  {fecha:"2026-06-15",semana:25,dia:"lunes",casa:"6"},{fecha:"2026-06-16",semana:25,dia:"martes",casa:"6"},{fecha:"2026-06-17",semana:25,dia:"miércoles",casa:"6"},{fecha:"2026-06-18",semana:25,dia:"jueves",casa:"6"},{fecha:"2026-06-19",semana:25,dia:"viernes",casa:"6"},{fecha:"2026-06-20",semana:25,dia:"sábado",casa:"6"},{fecha:"2026-06-21",semana:25,dia:"domingo",casa:"6"},
+  {fecha:"2026-06-22",semana:26,dia:"lunes",casa:"6"},{fecha:"2026-06-23",semana:26,dia:"martes",casa:"6"},{fecha:"2026-06-24",semana:26,dia:"miércoles",casa:"6"},{fecha:"2026-06-25",semana:26,dia:"jueves",casa:"6"},{fecha:"2026-06-26",semana:26,dia:"viernes",casa:"6"},{fecha:"2026-06-27",semana:26,dia:"sábado",casa:"6"},{fecha:"2026-06-28",semana:26,dia:"domingo",casa:"6"},
+  {fecha:"2026-06-29",semana:27,dia:"lunes",casa:"6"},{fecha:"2026-06-30",semana:27,dia:"martes",casa:"6"},
+  {fecha:"2026-07-01",semana:27,dia:"miércoles",casa:"7"},{fecha:"2026-07-02",semana:27,dia:"jueves",casa:"7"},{fecha:"2026-07-03",semana:27,dia:"viernes",casa:"7"},{fecha:"2026-07-04",semana:27,dia:"sábado",casa:"7"},{fecha:"2026-07-05",semana:27,dia:"domingo",casa:"7"},
+  {fecha:"2026-07-06",semana:28,dia:"lunes",casa:"7"},{fecha:"2026-07-07",semana:28,dia:"martes",casa:"7"},{fecha:"2026-07-08",semana:28,dia:"miércoles",casa:"7"},{fecha:"2026-07-09",semana:28,dia:"jueves",casa:"7"},{fecha:"2026-07-10",semana:28,dia:"viernes",casa:"7"},{fecha:"2026-07-11",semana:28,dia:"sábado",casa:"7"},{fecha:"2026-07-12",semana:28,dia:"domingo",casa:"7"},
+  {fecha:"2026-07-13",semana:29,dia:"lunes",casa:"7"},{fecha:"2026-07-14",semana:29,dia:"martes",casa:"7"},{fecha:"2026-07-15",semana:29,dia:"miércoles",casa:"7"},{fecha:"2026-07-16",semana:29,dia:"jueves",casa:"7"},{fecha:"2026-07-17",semana:29,dia:"viernes",casa:"7"},{fecha:"2026-07-18",semana:29,dia:"sábado",casa:"7"},{fecha:"2026-07-19",semana:29,dia:"domingo",casa:"7"},
+  {fecha:"2026-07-20",semana:30,dia:"lunes",casa:"7"},{fecha:"2026-07-21",semana:30,dia:"martes",casa:"7"},{fecha:"2026-07-22",semana:30,dia:"miércoles",casa:"7"},{fecha:"2026-07-23",semana:30,dia:"jueves",casa:"7"},{fecha:"2026-07-24",semana:30,dia:"viernes",casa:"7"},{fecha:"2026-07-25",semana:30,dia:"sábado",casa:"7"},{fecha:"2026-07-26",semana:30,dia:"domingo",casa:"7"},
+  {fecha:"2026-07-27",semana:31,dia:"lunes",casa:"7"},{fecha:"2026-07-28",semana:31,dia:"martes",casa:"7"},{fecha:"2026-07-29",semana:31,dia:"miércoles",casa:"7"},{fecha:"2026-07-30",semana:31,dia:"jueves",casa:"7"},{fecha:"2026-07-31",semana:31,dia:"viernes",casa:"7"},
+  {fecha:"2026-08-01",semana:31,dia:"sábado",casa:"8"},{fecha:"2026-08-02",semana:31,dia:"domingo",casa:"8"},
+  {fecha:"2026-08-03",semana:32,dia:"lunes",casa:"8"},{fecha:"2026-08-04",semana:32,dia:"martes",casa:"8"},{fecha:"2026-08-05",semana:32,dia:"miércoles",casa:"8"},{fecha:"2026-08-06",semana:32,dia:"jueves",casa:"8"},{fecha:"2026-08-07",semana:32,dia:"viernes",casa:"8"},{fecha:"2026-08-08",semana:32,dia:"sábado",casa:"8"},{fecha:"2026-08-09",semana:32,dia:"domingo",casa:"8"},
+  {fecha:"2026-08-10",semana:33,dia:"lunes",casa:"8"},{fecha:"2026-08-11",semana:33,dia:"martes",casa:"8"},{fecha:"2026-08-12",semana:33,dia:"miércoles",casa:"8"},{fecha:"2026-08-13",semana:33,dia:"jueves",casa:"8"},{fecha:"2026-08-14",semana:33,dia:"viernes",casa:"8"},{fecha:"2026-08-15",semana:33,dia:"sábado",casa:"8"},{fecha:"2026-08-16",semana:33,dia:"domingo",casa:"8"},
+  {fecha:"2026-08-17",semana:34,dia:"lunes",casa:"8"},{fecha:"2026-08-18",semana:34,dia:"martes",casa:"8"},{fecha:"2026-08-19",semana:34,dia:"miércoles",casa:"8"},{fecha:"2026-08-20",semana:34,dia:"jueves",casa:"8"},{fecha:"2026-08-21",semana:34,dia:"viernes",casa:"8"},{fecha:"2026-08-22",semana:34,dia:"sábado",casa:"8"},{fecha:"2026-08-23",semana:34,dia:"domingo",casa:"8"},
+  {fecha:"2026-08-24",semana:35,dia:"lunes",casa:"8"},{fecha:"2026-08-25",semana:35,dia:"martes",casa:"8"},{fecha:"2026-08-26",semana:35,dia:"miércoles",casa:"8"},{fecha:"2026-08-27",semana:35,dia:"jueves",casa:"8"},{fecha:"2026-08-28",semana:35,dia:"viernes",casa:"8"},{fecha:"2026-08-29",semana:35,dia:"sábado",casa:"8"},{fecha:"2026-08-30",semana:35,dia:"domingo",casa:"8"},{fecha:"2026-08-31",semana:35,dia:"lunes",casa:"8"},
+  {fecha:"2026-09-01",semana:36,dia:"martes",casa:"9"},{fecha:"2026-09-02",semana:36,dia:"miércoles",casa:"9"},{fecha:"2026-09-03",semana:36,dia:"jueves",casa:"9"},{fecha:"2026-09-04",semana:36,dia:"viernes",casa:"9"},{fecha:"2026-09-05",semana:36,dia:"sábado",casa:"9"},{fecha:"2026-09-06",semana:36,dia:"domingo",casa:"9"},
+  {fecha:"2026-09-07",semana:37,dia:"lunes",casa:"9"},{fecha:"2026-09-08",semana:37,dia:"martes",casa:"9"},{fecha:"2026-09-09",semana:37,dia:"miércoles",casa:"9"},{fecha:"2026-09-10",semana:37,dia:"jueves",casa:"9"},{fecha:"2026-09-11",semana:37,dia:"viernes",casa:"9"},{fecha:"2026-09-12",semana:37,dia:"sábado",casa:"9"},{fecha:"2026-09-13",semana:37,dia:"domingo",casa:"9"},
+  {fecha:"2026-09-14",semana:38,dia:"lunes",casa:"9"},{fecha:"2026-09-15",semana:38,dia:"martes",casa:"9"},{fecha:"2026-09-16",semana:38,dia:"miércoles",casa:"9"},{fecha:"2026-09-17",semana:38,dia:"jueves",casa:"9"},{fecha:"2026-09-18",semana:38,dia:"viernes",casa:"9"},{fecha:"2026-09-19",semana:38,dia:"sábado",casa:"9"},{fecha:"2026-09-20",semana:38,dia:"domingo",casa:"9"},
+  {fecha:"2026-09-21",semana:39,dia:"lunes",casa:"9"},{fecha:"2026-09-22",semana:39,dia:"martes",casa:"9"},{fecha:"2026-09-23",semana:39,dia:"miércoles",casa:"9"},{fecha:"2026-09-24",semana:39,dia:"jueves",casa:"9"},{fecha:"2026-09-25",semana:39,dia:"viernes",casa:"9"},{fecha:"2026-09-26",semana:39,dia:"sábado",casa:"9"},{fecha:"2026-09-27",semana:39,dia:"domingo",casa:"9"},
+  {fecha:"2026-09-28",semana:40,dia:"lunes",casa:"9"},{fecha:"2026-09-29",semana:40,dia:"martes",casa:"9"},{fecha:"2026-09-30",semana:40,dia:"miércoles",casa:"9"},
+  {fecha:"2026-10-01",semana:40,dia:"jueves",casa:"10"},{fecha:"2026-10-02",semana:40,dia:"viernes",casa:"10"},{fecha:"2026-10-03",semana:40,dia:"sábado",casa:"10"},{fecha:"2026-10-04",semana:40,dia:"domingo",casa:"10"},
+  {fecha:"2026-10-05",semana:41,dia:"lunes",casa:"10"},{fecha:"2026-10-06",semana:41,dia:"martes",casa:"10"},{fecha:"2026-10-07",semana:41,dia:"miércoles",casa:"10"},{fecha:"2026-10-08",semana:41,dia:"jueves",casa:"10"},{fecha:"2026-10-09",semana:41,dia:"viernes",casa:"10"},{fecha:"2026-10-10",semana:41,dia:"sábado",casa:"10"},{fecha:"2026-10-11",semana:41,dia:"domingo",casa:"10"},
+  {fecha:"2026-10-12",semana:42,dia:"lunes",casa:"10"},{fecha:"2026-10-13",semana:42,dia:"martes",casa:"10"},{fecha:"2026-10-14",semana:42,dia:"miércoles",casa:"10"},{fecha:"2026-10-15",semana:42,dia:"jueves",casa:"10"},{fecha:"2026-10-16",semana:42,dia:"viernes",casa:"10"},{fecha:"2026-10-17",semana:42,dia:"sábado",casa:"10"},{fecha:"2026-10-18",semana:42,dia:"domingo",casa:"10"},
+  {fecha:"2026-10-19",semana:43,dia:"lunes",casa:"10"},{fecha:"2026-10-20",semana:43,dia:"martes",casa:"10"},{fecha:"2026-10-21",semana:43,dia:"miércoles",casa:"10"},{fecha:"2026-10-22",semana:43,dia:"jueves",casa:"10"},{fecha:"2026-10-23",semana:43,dia:"viernes",casa:"10"},{fecha:"2026-10-24",semana:43,dia:"sábado",casa:"10"},{fecha:"2026-10-25",semana:43,dia:"domingo",casa:"10"},
+  {fecha:"2026-10-26",semana:44,dia:"lunes",casa:"10"},{fecha:"2026-10-27",semana:44,dia:"martes",casa:"10"},{fecha:"2026-10-28",semana:44,dia:"miércoles",casa:"10"},{fecha:"2026-10-29",semana:44,dia:"jueves",casa:"10"},{fecha:"2026-10-30",semana:44,dia:"viernes",casa:"10"},{fecha:"2026-10-31",semana:44,dia:"sábado",casa:"10"},
+  {fecha:"2026-11-01",semana:44,dia:"domingo",casa:"11"},{fecha:"2026-11-02",semana:45,dia:"lunes",casa:"11"},{fecha:"2026-11-03",semana:45,dia:"martes",casa:"11"},{fecha:"2026-11-04",semana:45,dia:"miércoles",casa:"11"},{fecha:"2026-11-05",semana:45,dia:"jueves",casa:"11"},{fecha:"2026-11-06",semana:45,dia:"viernes",casa:"11"},{fecha:"2026-11-07",semana:45,dia:"sábado",casa:"11"},{fecha:"2026-11-08",semana:45,dia:"domingo",casa:"11"},
+  {fecha:"2026-11-09",semana:46,dia:"lunes",casa:"11"},{fecha:"2026-11-10",semana:46,dia:"martes",casa:"11"},{fecha:"2026-11-11",semana:46,dia:"miércoles",casa:"11"},{fecha:"2026-11-12",semana:46,dia:"jueves",casa:"11"},{fecha:"2026-11-13",semana:46,dia:"viernes",casa:"11"},{fecha:"2026-11-14",semana:46,dia:"sábado",casa:"11"},{fecha:"2026-11-15",semana:46,dia:"domingo",casa:"11"},
+  {fecha:"2026-11-16",semana:47,dia:"lunes",casa:"11"},{fecha:"2026-11-17",semana:47,dia:"martes",casa:"11"},{fecha:"2026-11-18",semana:47,dia:"miércoles",casa:"11"},{fecha:"2026-11-19",semana:47,dia:"jueves",casa:"11"},{fecha:"2026-11-20",semana:47,dia:"viernes",casa:"11"},{fecha:"2026-11-21",semana:47,dia:"sábado",casa:"11"},{fecha:"2026-11-22",semana:47,dia:"domingo",casa:"11"},
+  {fecha:"2026-11-23",semana:48,dia:"lunes",casa:"11"},{fecha:"2026-11-24",semana:48,dia:"martes",casa:"11"},{fecha:"2026-11-25",semana:48,dia:"miércoles",casa:"11"},{fecha:"2026-11-26",semana:48,dia:"jueves",casa:"11"},{fecha:"2026-11-27",semana:48,dia:"viernes",casa:"11"},{fecha:"2026-11-28",semana:48,dia:"sábado",casa:"11"},{fecha:"2026-11-29",semana:48,dia:"domingo",casa:"11"},{fecha:"2026-11-30",semana:48,dia:"lunes",casa:"11"},
+  {fecha:"2026-12-01",semana:49,dia:"martes",casa:"12"},{fecha:"2026-12-02",semana:49,dia:"miércoles",casa:"12"},{fecha:"2026-12-03",semana:49,dia:"jueves",casa:"12"},{fecha:"2026-12-04",semana:49,dia:"viernes",casa:"12"},{fecha:"2026-12-05",semana:49,dia:"sábado",casa:"12"},{fecha:"2026-12-06",semana:49,dia:"domingo",casa:"12"},
+  {fecha:"2026-12-07",semana:50,dia:"lunes",casa:"12"},{fecha:"2026-12-08",semana:50,dia:"martes",casa:"12"},{fecha:"2026-12-09",semana:50,dia:"miércoles",casa:"12"},{fecha:"2026-12-10",semana:50,dia:"jueves",casa:"12"},{fecha:"2026-12-11",semana:50,dia:"viernes",casa:"12"},{fecha:"2026-12-12",semana:50,dia:"sábado",casa:"12"},{fecha:"2026-12-13",semana:50,dia:"domingo",casa:"12"},
+  {fecha:"2026-12-14",semana:51,dia:"lunes",casa:"12"},{fecha:"2026-12-15",semana:51,dia:"martes",casa:"12"},{fecha:"2026-12-16",semana:51,dia:"miércoles",casa:"12"},{fecha:"2026-12-17",semana:51,dia:"jueves",casa:"12"},{fecha:"2026-12-18",semana:51,dia:"viernes",casa:"12"},{fecha:"2026-12-19",semana:51,dia:"sábado",casa:"12"},{fecha:"2026-12-20",semana:51,dia:"domingo",casa:"12"},
+  {fecha:"2026-12-21",semana:52,dia:"lunes",casa:"12"},{fecha:"2026-12-22",semana:52,dia:"martes",casa:"12"},{fecha:"2026-12-23",semana:52,dia:"miércoles",casa:"12"},{fecha:"2026-12-24",semana:52,dia:"jueves",casa:"12"},{fecha:"2026-12-25",semana:52,dia:"viernes",casa:"12"},{fecha:"2026-12-26",semana:52,dia:"sábado",casa:"12"},{fecha:"2026-12-27",semana:52,dia:"domingo",casa:"12"},
+  {fecha:"2026-12-28",semana:53,dia:"lunes",casa:"12"},{fecha:"2026-12-29",semana:53,dia:"martes",casa:"12"},{fecha:"2026-12-30",semana:53,dia:"miércoles",casa:"12"},{fecha:"2026-12-31",semana:53,dia:"jueves",casa:"12"},
+  {fecha:"2027-01-01",semana:53,dia:"viernes",casa:"1"},{fecha:"2027-01-02",semana:53,dia:"sábado",casa:"1"},{fecha:"2027-01-03",semana:53,dia:"domingo",casa:"1"},
+];
+
+const FESTIVOS_DEFAULT = {
+  "2026-01-01":"Año Nuevo","2026-01-06":"Reyes Magos","2026-04-02":"Jueves Santo",
+  "2026-04-03":"Viernes Santo","2026-05-01":"Día del Trabajador","2026-08-15":"Asunción de la Virgen",
+  "2026-10-12":"Fiesta Nacional","2026-11-01":"Todos los Santos","2026-12-06":"Día de la Constitución",
+  "2026-12-08":"Inmaculada Concepción","2026-12-25":"Navidad"
+};
+
+const MESES   = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MESES_C = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const COLORS  = ["#2563eb","#db2777","#16a34a","#d97706","#7c3aed","#0891b2","#dc2626","#65a30d"];
+const TODAY   = new Date().toISOString().slice(0,10);
+
+// ── App state (synced from Firebase) ────────────────────────────────────
+let STATE = {
+  persons:   ["Alejandra","Nayara"],
+  records:   {},   // { personName: { fecha: {ingreso,salida,nota} } }
+  targets:   {},   // { personName: hoursPerWeek }
+  vacDays:   {},   // { personName: totalDays }
+  vacations: {},   // { personName: [fecha,...] }
+  libreDays: {},   // { personName: totalDays }
+  libres:    {},   // { personName: [fecha,...] }
+  festivos:  {...FESTIVOS_DEFAULT},
+};
+
+let modalDay    = null;
+let editPerson  = null;
+let filterMonth = null;
+let settingsTab = "personal";
+let syncing     = false;
+
+// ── Firebase sync ────────────────────────────────────────────────────────
+function setSyncing(v) {
+  syncing = v;
+  const dot = document.getElementById("sync-dot");
+  if(dot) { dot.className = v ? "syncing" : ""; }
+}
+
+function dbWrite(path, value) {
+  setSyncing(true);
+  return set(ref(db, path), value)
+    .then(()=>setSyncing(false))
+    .catch(e=>{ setSyncing(false); console.error(e); showToast("⚠️ Error al guardar"); });
+}
+
+function dbPatch(path, value) {
+  setSyncing(true);
+  return update(ref(db, path), value)
+    .then(()=>setSyncing(false))
+    .catch(e=>{ setSyncing(false); console.error(e); showToast("⚠️ Error al guardar"); });
+}
+
+// Listen to all data in real-time
+let firstLoad = true;
+onValue(ref(db, "horario2026"), (snap) => {
+  const data = snap.val() || {};
+  STATE.persons   = data.persons   || ["Alejandra","Nayara"];
+  STATE.records   = data.records   || {};
+  STATE.targets   = data.targets   || {};
+  STATE.vacDays   = data.vacDays   || {};
+  STATE.vacations = data.vacations || {};
+  STATE.libreDays = data.libreDays || {};
+  STATE.libres    = data.libres    || {};
+  STATE.festivos  = data.festivos  || {...FESTIVOS_DEFAULT};
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  render();
+  if(modalDay) renderModalBody();
+  // Auto-scroll to today only on first load
+  if(firstLoad){ firstLoad=false; setTimeout(scrollToToday, 100); }
+}, { onlyOnce: false });
+
+// Init default data if empty
+onValue(ref(db, "horario2026/persons"), (snap) => {
+  if(!snap.exists()) {
+    dbWrite("horario2026/persons", ["Alejandra","Nayara"]);
+    dbWrite("horario2026/festivos", FESTIVOS_DEFAULT);
+  }
+}, { onlyOnce: true });
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+function parseTime(s){ if(!s) return null; const [h,m]=s.split(":").map(Number); return isNaN(h)||isNaN(m)?null:h*60+m; }
+function calcH(i,s){ const a=parseTime(i),b=parseTime(s); if(a==null||b==null) return null; let d=b-a; if(d<0)d+=1440; return d/60; }
+function fmtH(h,signed=false){
+  if(h==null||isNaN(h)) return "—";
+  const neg=h<0,ah=Math.abs(h);
+  const str=`${Math.floor(ah)}h ${String(Math.round((ah%1)*60)).padStart(2,"0")}m`;
+  if(signed) return (neg?"−":"+")+str; return str;
+}
+function ini(n){ return n.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2); }
+function pColor(name){ const i=STATE.persons.indexOf(name); return COLORS[Math.max(i,0)%COLORS.length]; }
+function isWE(dia){ return dia==="sábado"||dia==="domingo"; }
+function getPRec(p,f){ return ((STATE.records[p]||{})[f])||{}; }
+function isVacation(p,f){ return (STATE.vacations[p]||[]).includes(f); }
+function isLibre(p,f){ return (STATE.libres[p]||[]).includes(f); }
+
+function scrollToToday(){
+  const el = document.getElementById("day-"+TODAY);
+  if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); }
+}
+
+function groupByWeek(data){
+  const weeks=[]; let cur=null;
+  data.forEach(d=>{ if(!cur||cur.semana!==d.semana){cur={semana:d.semana,days:[]}; weeks.push(cur);} cur.days.push(d); });
+  return weeks;
+}
+
+function effectiveTarget(person, days){
+  const target = STATE.targets[person]; if(!target) return null;
+  const workDays = days.filter(d=>!isWE(d.dia));
+  if(workDays.length===0) return 0;
+  const hPerDay = target/5;
+  let off=0;
+  // Only vacations and libres reduce target — festivos no longer block
+  workDays.forEach(d=>{
+    if(isVacation(person,d.fecha)) off++;
+    else if(isLibre(person,d.fecha)) off++;
+  });
+  return Math.max(0,(workDays.length-off)*hPerDay);
+}
+
+function weekDone(p,days){ return days.reduce((s,d)=>{ const r=getPRec(p,d.fecha); return s+(calcH(r.ingreso,r.salida)||0); },0); }
+
+function todayRemaining(p,days){
+  const tgt=effectiveTarget(p,days); if(tgt==null) return null;
+  const bal=tgt-weekDone(p,days); if(bal<=0) return 0;
+  const ti=days.findIndex(d=>d.fecha===TODAY); if(ti===-1) return null;
+  const remDays=days.slice(ti).filter(d=>!isWE(d.dia)&&!isVacation(p,d.fecha)&&!isLibre(p,d.fecha)).length;
+  return remDays>0?bal/remDays:null;
+}
+
+const WEEKS = groupByWeek(CALENDAR_DATA);
+const MONTHS = (() => {
+  const seen=new Set();
+  return CALENDAR_DATA.filter(d=>{ const n=parseInt(d.casa); return !isNaN(n)&&n>=1&&n<=12&&!seen.has(n)&&seen.add(n); })
+    .map(d=>parseInt(d.casa)).sort((a,b)=>a-b);
+})();
+
+// ── Toast ────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2200); }
+
+// ── Balance bar HTML ─────────────────────────────────────────────────────
+function balBarHTML(done, target, small=false){
+  if(target==null) return "";
+  const bal=done-target, over=bal>=0;
+  const pct=Math.min(100, target>0?Math.round((done/target)*100):100);
+  const color=over?"#16a34a":done>0?"#d97706":"#94a3b8";
+  const bg=over?"#f0fdf4":done>0?"#fffbeb":"#f8fafc";
+  const border=over?"#86efac":done>0?"#fcd34d":"#e2e8f0";
+  if(small) return `<span class="bal-badge" style="color:${color};background:${bg};border-color:${border};">${fmtH(done)}/${fmtH(target)} ${fmtH(bal,true)}</span>`;
+  return `<div class="bal-bar" style="background:${bg};border-color:${border};">
+    <div class="bal-bar-row"><span style="font-size:12px;color:#64748b;">Hechas <b style="color:#0f172a;">${fmtH(done)}</b> / ${fmtH(target)}</span><span style="font-size:13px;font-weight:800;color:${color};">${fmtH(bal,true)}</span></div>
+    <div class="bal-track"><div class="bal-fill" style="background:${color};width:${pct}%;"></div></div>
+  </div>`;
+}
+
+// ── Render main list ─────────────────────────────────────────────────────
+function render(){
+  renderHeader();
+  renderMonthPills();
+  renderList();
+}
+
+function renderHeader(){
+  const sub = document.getElementById("header-sub");
+  sub.innerHTML = STATE.persons.map((p,i)=>{
+    const t=STATE.targets[p], vd=STATE.vacDays[p], ld=STATE.libreDays[p];
+    const vacUsed=(STATE.vacations[p]||[]).length, libreUsed=(STATE.libres[p]||[]).length;
+    return `<span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLORS[i%COLORS.length]};"></span>${p}${t?` ${t}h/sem`:""}${vd?` · 🏖${vacUsed}/${vd}d`:""}${ld?` · 🌴${libreUsed}/${ld}d`:""}</span>`;
+  }).join("");
+}
+
+function renderMonthPills(){
+  const pills = document.getElementById("month-pills");
+  const all = `<button class="pill ${filterMonth===null?"active":"inactive"}" onclick="setFilter(null)">Todo</button>`;
+  const mons = MONTHS.map(m=>`<button class="pill ${filterMonth===m?"active":"inactive"}" onclick="setFilter(${m})">${MESES_C[m]}</button>`).join("");
+  pills.innerHTML = all+mons;
+}
+
+function setFilter(m){ filterMonth = (m===filterMonth?null:m); renderMonthPills(); renderList(); }
+window.setFilter = setFilter;
+
+function renderList(){
+  const visibleWeeks = filterMonth!==null ? WEEKS.filter(w=>w.days.some(d=>parseInt(d.casa)===filterMonth)) : WEEKS;
+  const list = document.getElementById("list");
+  list.innerHTML = visibleWeeks.map(w => {
+    const isCurrent = w.days.some(d=>d.fecha===TODAY);
+    const badges = STATE.persons.map((p,i)=>{
+      const done=weekDone(p,w.days), tgt=effectiveTarget(p,w.days);
+      return `<span style="display:flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:${COLORS[i%COLORS.length]};display:inline-block;flex-shrink:0;"></span>${tgt!=null?balBarHTML(done,tgt,true):`<span style="font-size:11px;color:#94a3b8;">${fmtH(done)}</span>`}</span>`;
+    }).join("");
+    const days = w.days.map(d=>dayCardHTML(d,w)).join("");
+    return `<div class="week-group">
+      <div class="week-header">
+        <span class="week-label" style="color:${isCurrent?"#2563eb":"#94a3b8"};">${isCurrent?"▶ ":""}Sem ${w.semana}</span>
+        <div class="week-line"></div>
+        <div class="week-badges">${badges}</div>
+      </div>
+      <div class="days-col">${days}</div>
+    </div>`;
+  }).join("");
+}
+
+function dayCardHTML(d, week){
+  const isToday=d.fecha===TODAY, isWeekend=isWE(d.dia), isFestivo=!!STATE.festivos[d.fecha];
+  const anyRec=STATE.persons.some(p=>{const r=getPRec(p,d.fecha);return r.ingreso&&r.salida;});
+  const anyVac=STATE.persons.some(p=>isVacation(p,d.fecha));
+  const anyLibre=STATE.persons.some(p=>isLibre(p,d.fecha));
+  let borderColor="#e5e7eb", bgColor=isToday?"#eff6ff":isWeekend?"#f9fafb":"#fff";
+  if(isToday) borderColor="#2563eb";
+  else if(anyVac){ borderColor="#67e8f9"; bgColor="#f0fdff"; }
+  else if(anyLibre){ borderColor="#a78bfa"; bgColor="#faf5ff"; }
+  else if(isFestivo){ borderColor="#fbbf24"; bgColor="#fffbeb"; }
+  else if(anyRec) borderColor="#86efac";
+
+  const festLabel = isFestivo?`<div style="font-size:11px;font-weight:700;color:#b45309;">🎉 ${STATE.festivos[d.fecha]}</div>`:"";
+  const people = STATE.persons.map((p,i)=>{
+    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida;
+    const vac=isVacation(p,d.fecha), libre=isLibre(p,d.fecha);
+    const c=COLORS[i%COLORS.length];
+    const dayRem = isToday&&week ? todayRemaining(p,week.days) : null;
+    const avatarBg = vac?"#67e8f9":libre?"#a78bfa":has?c:`${c}30`;
+    const avatarColor = vac?"#0e7490":libre?"#fff":has?"#fff":c;
+    const text = vac?`<span style="font-size:11px;color:#0e7490;font-weight:600;">🏖 Vacaciones</span>`
+      : libre?`<span style="font-size:11px;color:#7c3aed;font-weight:600;">🌴 Libre</span>`
+      : has?`<span style="font-size:12px;color:#374151;">${r.ingreso}→${r.salida} <b style="color:#16a34a;">${fmtH(h)}</b></span>`
+      : `<span style="font-size:12px;color:#d1d5db;">—</span>`;
+    const remBadge = (isToday&&dayRem!==null&&!vac&&!libre)
+      ? `<span style="font-size:10px;color:${dayRem<=0?"#16a34a":"#d97706"};font-weight:700;background:${dayRem<=0?"#f0fdf4":"#fffbeb"};border-radius:5px;padding:1px 5px;">${dayRem<=0?"✓":`~${fmtH(dayRem)} hoy`}</span>` : "";
+    const noteIcon = r.nota?`<span title="${r.nota}" style="font-size:10px;">💬</span>`:"";
+    return `<div class="person-row"><div class="avatar-sm" style="background:${avatarBg};color:${avatarColor};">${ini(p)}</div>${text}${noteIcon}${remBadge}</div>`;
+  }).join("");
+
+  return `<div id="day-${d.fecha}" class="day-card" style="background:${bgColor};border-color:${borderColor};border-width:${isToday?"2px":"1.5px"};" onclick="openModal('${d.fecha}')">
+    <div class="day-num">
+      <div class="day-weekday" style="color:${isWeekend?"#9ca3af":"#6b7280"};">${d.dia.slice(0,3)}</div>
+      <div class="day-n" style="color:${isToday?"#2563eb":isFestivo?"#b45309":isWeekend?"#9ca3af":"#1e293b"};">${d.fecha.slice(8)}</div>
+      <div class="day-month">${MESES_C[parseInt(d.casa)]||""}</div>
+    </div>
+    <div class="day-people">${festLabel}${people}</div>
+    <div class="chevron">›</div>
+  </div>`;
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────
+window.openModal = function(fecha){
+  modalDay = CALENDAR_DATA.find(d=>d.fecha===fecha);
+  editPerson = null;
+  const d = modalDay;
+  const mesLabel = isNaN(parseInt(d.casa))?d.casa:MESES[parseInt(d.casa)];
+  const isFestivo = !!STATE.festivos[d.fecha];
+  document.getElementById("modal-title").textContent = `${d.dia} ${d.fecha.slice(8)}`;
+  const sub = document.getElementById("modal-sub");
+  sub.innerHTML = `<span>Semana ${d.semana} · ${mesLabel}</span>${isFestivo?`<span style="background:#fef9c3;color:#b45309;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;">🎉 ${STATE.festivos[d.fecha]}</span>`:""}`;
+  renderModalBody();
+  document.getElementById("modal-backdrop").style.display = "flex";
+  document.body.style.overflow = "hidden";
+};
+
+window.closeModal = function(){
+  document.getElementById("modal-backdrop").style.display = "none";
+  document.body.style.overflow = "";
+  modalDay = null; editPerson = null;
+};
+
+window.handleBackdropClick = function(e){ if(e.target===document.getElementById("modal-backdrop")) closeModal(); };
+
+function renderModalBody(){
+  if(!modalDay) return;
+  const body = document.getElementById("modal-body");
+  if(editPerson){ body.innerHTML = editFormHTML(); attachEditListeners(); }
+  else { body.innerHTML = personListHTML(); }
+}
+
+function personListHTML(){
+  const d = modalDay;
+  const isFestivo = !!STATE.festivos[d.fecha];
+  const week = WEEKS.find(w=>w.days.some(x=>x.fecha===d.fecha));
+  const cards = STATE.persons.map((p,i)=>{
+    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida;
+    const vac=isVacation(p,d.fecha), libre=isLibre(p,d.fecha);
+    const c=COLORS[i%COLORS.length];
+    const done=week?weekDone(p,week.days):0, tgt=week?effectiveTarget(p,week.days):null;
+    const dayRem=week?todayRemaining(p,week.days):null;
+    const vacTotal=STATE.vacDays[p]||null, vacUsed=(STATE.vacations[p]||[]).length;
+    const libreTotal=STATE.libreDays[p]||null, libreUsed=(STATE.libres[p]||[]).length;
+    const vacBadge = vacTotal?`<span style="font-size:11px;font-weight:700;color:${vacUsed>vacTotal?"#dc2626":"#0891b2"};background:${vacUsed>vacTotal?"#fef2f2":"#eff6ff"};border:1px solid ${vacUsed>vacTotal?"#fca5a5":"#bfdbfe"};border-radius:6px;padding:1px 7px;white-space:nowrap;">🏖 ${vacUsed}/${vacTotal}d</span>`:"";
+    const libreBadge = libreTotal?`<span style="font-size:11px;font-weight:700;color:${libreUsed>libreTotal?"#dc2626":"#7c3aed"};background:${libreUsed>libreTotal?"#fef2f2":"#faf5ff"};border:1px solid ${libreUsed>libreTotal?"#fca5a5":"#c4b5fd"};border-radius:6px;padding:1px 7px;white-space:nowrap;">🌴 ${libreUsed}/${libreTotal}d</span>`:"";
+    const avatarBg = vac?"#67e8f9":libre?"#a78bfa":has?c:`${c}20`;
+    const avatarColor = vac?"#0e7490":libre?"#fff":has?"#fff":c;
+    const statusText = vac?`<div style="font-size:13px;color:#0e7490;font-weight:600;">🏖 Día de vacaciones</div>`
+      : libre?`<div style="font-size:13px;color:#7c3aed;font-weight:600;">🌴 Día libre</div>`
+      : has?`<div style="font-size:13px;color:#64748b;">${r.ingreso} → ${r.salida} · <b style="color:#16a34a;">${fmtH(h)}</b>${r.nota?" · 💬":""}</div>`
+      : `<div style="font-size:13px;color:#94a3b8;">${isFestivo?"Festivo (laborable)":"Sin registrar"}</div>`;
+    // All days active — festivos included
+    const actionBtns = `<div class="action-btns">
+      <button class="btn-hora" style="color:${has?"#fff":c};background:${has?c:`${c}15`};border-color:${c};" onclick="openEdit('${p}')">
+        ${has?"✏️ Editar":"+ Hora"}
+      </button>
+      ${!isWE(d.dia)?`
+      <button class="btn-vac" style="color:${vac?"#dc2626":"#0891b2"};background:${vac?"#fee2e2":"#e0f2fe"};border-color:${vac?"#fca5a5":"#7dd3fc"};" onclick="toggleVac('${p}','${d.fecha}')">
+        ${vac?"✕ Quitar vac.":"🏖 Vac."}
+      </button>
+      <button class="btn-vac" style="color:${libre?"#dc2626":"#7c3aed"};background:${libre?"#fee2e2":"#faf5ff"};border-color:${libre?"#fca5a5":"#c4b5fd"};" onclick="toggleLibre('${p}','${d.fecha}')">
+        ${libre?"✕ Quitar libre":"🌴 Libre"}
+      </button>`:""}
+    </div>`;
+    const bal = tgt!=null?balBarHTML(done,tgt):"";
+    const dayHint = (tgt!=null&&d.fecha===TODAY&&dayRem!==null&&!vac&&!libre)
+      ?`<div style="font-size:12px;color:${dayRem<=0?"#16a34a":"#d97706"};font-weight:600;">${dayRem<=0?"✅ Horas de la semana completadas":`📅 Para cumplir esta semana: ~${fmtH(dayRem)} hoy`}</div>`:""
+    ;
+    return `<div class="person-card" style="background:${vac?"#f0fdff":libre?"#faf5ff":has?`${c}08`:"#f8fafc"};border-color:${vac?"#67e8f9":libre?"#a78bfa":has?c:"#e2e8f0"};">
+      <div class="person-card-row">
+        <div class="avatar-lg" style="background:${avatarBg};color:${avatarColor};">${ini(p)}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:15px;color:#0f172a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${p}${vacBadge}${libreBadge}</div>
+          ${statusText}
+        </div>
+        ${actionBtns}
+      </div>
+      ${bal}${dayHint}
+    </div>`;
+  }).join("");
+  return `<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Personal</div>
+    ${cards}
+  </div>`;
+}
+
+window.openEdit = function(person){
+  editPerson = person;
+  const r = getPRec(person, modalDay.fecha);
+  // Store in form state
+  window._fIn = r.ingreso||""; window._fOut = r.salida||""; window._fNote = r.nota||"";
+  renderModalBody();
+};
+
+window.toggleVac = function(person, fecha){
+  const cur = STATE.vacations[person]||[];
+  const next = cur.includes(fecha)?cur.filter(d=>d!==fecha):[...cur,fecha];
+  dbWrite(`horario2026/vacations/${person}`, next);
+  showToast(next.includes(fecha)?"🏖 Vacaciones marcadas":"✓ Vacaciones quitadas");
+};
+
+window.toggleLibre = function(person, fecha){
+  const cur = STATE.libres[person]||[];
+  const next = cur.includes(fecha)?cur.filter(d=>d!==fecha):[...cur,fecha];
+  dbWrite(`horario2026/libres/${person}`, next);
+  showToast(next.includes(fecha)?"🌴 Día libre marcado":"✓ Libre quitado");
+};
+
+function editFormHTML(){
+  const p = editPerson;
+  const c = pColor(p);
+  const week = WEEKS.find(w=>w.days.some(x=>x.fecha===modalDay.fecha));
+  const done = week?weekDone(p,week.days):0;
+  const tgt = week?effectiveTarget(p,week.days):null;
+  const fIn=window._fIn||"", fOut=window._fOut||"";
+  const [hIn,mIn] = fIn?fIn.split(":"):[" "," "];
+  const [hOut,mOut] = fOut?fOut.split(":"):[" "," "];
+  const hours24 = Array.from({length:24},(_,i)=>String(i).padStart(2,"0"));
+  const mins = ["00","05","10","15","20","25","30","35","40","45","50","55"];
+  const mkHSel = (id,val) => `<select id="${id}" class="time-select">${hours24.map(h=>`<option value="${h}"${h===val?"selected":""}>${h}</option>`).join("")}</select>`;
+  const mkMSel = (id,val) => `<select id="${id}" class="time-select">${mins.map(m=>`<option value="${m}"${m===val?"selected":""}>${m}</option>`).join("")}</select>`;
+  const h = calcH(fIn,fOut);
+  const hoursResult = (fIn&&fOut&&h!=null)?`<div class="hours-result">⏱ ${fmtH(h)}</div>`:"<div id='hrs-result'></div>";
+  const balSection = tgt!=null?`<div style="margin-bottom:14px;">${balBarHTML(done,tgt)}</div>`:"";
+  return `<div class="form-section">
+    <button class="back-btn" onclick="backToList()">← Volver</button>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div class="avatar-lg" style="background:${c};color:#fff;">${ini(p)}</div>
+      <div style="font-weight:700;font-size:17px;">${p}</div>
+    </div>
+    ${balSection}
+    <div class="time-row">
+      <div class="time-col">
+        <div class="time-label">Ingreso</div>
+        <div class="time-selects">${mkHSel("sel-hIn",hIn)} <span style="font-weight:800;color:#94a3b8;font-size:18px;">:</span> ${mkMSel("sel-mIn",mIn)}</div>
+      </div>
+      <div class="time-col">
+        <div class="time-label">Salida</div>
+        <div class="time-selects">${mkHSel("sel-hOut",hOut)} <span style="font-weight:800;color:#94a3b8;font-size:18px;">:</span> ${mkMSel("sel-mOut",mOut)}</div>
+      </div>
+    </div>
+    <div id="hrs-display">${hoursResult}</div>
+    <div class="note-label">Nota</div>
+    <textarea id="edit-note" rows="2" placeholder="Opcional...">${window._fNote||""}</textarea>
+    <div class="form-btns">
+      <button id="btn-save" class="btn-save" style="background:${c};" onclick="doSave()">Guardar</button>
+      <button class="btn-clear" onclick="doClear()">Borrar</button>
+    </div>
+  </div>`;
+}
+
+function attachEditListeners(){
+  ["sel-hIn","sel-mIn","sel-hOut","sel-mOut"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener("change", updateHoursPreview);
+  });
+  updateHoursPreview();
+}
+
+function updateHoursPreview(){
+  const hIn=document.getElementById("sel-hIn")?.value;
+  const mIn=document.getElementById("sel-mIn")?.value;
+  const hOut=document.getElementById("sel-hOut")?.value;
+  const mOut=document.getElementById("sel-mOut")?.value;
+  window._fIn = (hIn&&mIn&&hIn.trim()&&mIn.trim())?`${hIn}:${mIn}`:"";
+  window._fOut = (hOut&&mOut&&hOut.trim()&&mOut.trim())?`${hOut}:${mOut}`:"";
+  const h=calcH(window._fIn,window._fOut);
+  const el=document.getElementById("hrs-display");
+  if(el) el.innerHTML = (window._fIn&&window._fOut&&h!=null)?`<div class="hours-result">⏱ ${fmtH(h)}</div>`:"";
+}
+
+window.backToList = function(){ editPerson=null; renderModalBody(); };
+
+window.doSave = function(){
+  const fIn=window._fIn, fOut=window._fOut, fNote=document.getElementById("edit-note")?.value||"";
+  const rec = {ingreso:fIn, salida:fOut, nota:fNote};
+  dbPatch(`horario2026/records/${editPerson}`, {[modalDay.fecha]:rec});
+  const btn=document.getElementById("btn-save");
+  if(btn){ btn.textContent="✓ Guardado"; btn.style.background="#16a34a"; }
+  setTimeout(()=>{ editPerson=null; renderModalBody(); },700);
+  showToast("✓ Guardado");
+};
+
+window.doClear = function(){
+  dbWrite(`horario2026/records/${editPerson}/${modalDay.fecha}`, null);
+  editPerson=null; renderModalBody();
+  showToast("Registro borrado");
+};
+
+// ── Settings ─────────────────────────────────────────────────────────────
+window.openSettings = function(){
+  renderSettingsBody();
+  document.getElementById("settings-backdrop").style.display="flex";
+  document.body.style.overflow="hidden";
+};
+window.closeSettings = function(){
+  document.getElementById("settings-backdrop").style.display="none";
+  document.body.style.overflow="";
+};
+window.handleSettingsBackdrop = function(e){ if(e.target===document.getElementById("settings-backdrop")) closeSettings(); };
+window.switchTab = function(tab){
+  settingsTab=tab;
+  document.getElementById("tab-personal").className="tab-btn "+(tab==="personal"?"active":"inactive");
+  document.getElementById("tab-festivos").className="tab-btn "+(tab==="festivos"?"active":"inactive");
+  renderSettingsBody();
+};
+
+function renderSettingsBody(){
+  const body=document.getElementById("settings-body");
+  if(settingsTab==="personal") body.innerHTML=personalTabHTML();
+  else body.innerHTML=festivosTabHTML();
+}
+
+function personalTabHTML(){
+  const rows = STATE.persons.map((p,i)=>{
+    const c=COLORS[i%COLORS.length];
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="width:34px;height:34px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;flex-shrink:0;">${ini(p)}</div>
+      <div style="flex:1;font-weight:600;font-size:14px;min-width:80px;">${p}</div>
+      <div style="display:flex;align-items:center;gap:4px;" title="Horas por semana">
+        <input type="number" min="1" max="80" value="${STATE.targets[p]||""}" placeholder="—"
+          onchange="setTarget('${p}',this.value)"
+          style="width:52px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
+        <span style="font-size:11px;color:#94a3b8;">h/sem</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;" title="Días de vacaciones">
+        <span style="font-size:13px;">🏖</span>
+        <input type="number" min="0" max="60" value="${STATE.vacDays[p]||""}" placeholder="—"
+          onchange="setVacDays('${p}',this.value)"
+          style="width:44px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;" title="Días libres">
+        <span style="font-size:13px;">🌴</span>
+        <input type="number" min="0" max="60" value="${STATE.libreDays[p]||""}" placeholder="—"
+          onchange="setLibreDays('${p}',this.value)"
+          style="width:44px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
+      </div>
+      <button onclick="removePerson('${p}')" style="background:none;border:none;color:#fca5a5;font-size:15px;cursor:pointer;">🗑</button>
+    </div>`;
+  }).join("");
+  return `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Configuración por persona</div>
+  <div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">⏱ h/sem &nbsp;·&nbsp; 🏖 Vacaciones &nbsp;·&nbsp; 🌴 Días libres</div>
+  ${rows}
+  <button onclick="showAddPerson()" style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:10px;padding:9px 14px;cursor:pointer;color:#94a3b8;font-size:14px;width:100%;margin-top:4px;">
+    <span style="font-size:18px;">+</span> Agregar persona
+  </button>`;
+}
+
+window.setTarget = function(person,val){ dbPatch("horario2026/targets",{[person]:Number(val)||null}); };
+window.setVacDays = function(person,val){ dbPatch("horario2026/vacDays",{[person]:Number(val)||null}); };
+window.setLibreDays = function(person,val){ dbPatch("horario2026/libreDays",{[person]:Number(val)||null}); };
+window.removePerson = function(person){
+  const next=STATE.persons.filter(p=>p!==person);
+  dbWrite("horario2026/persons",next); showToast(`${person} eliminado/a`);
+};
+window.showAddPerson = function(){
+  const body=document.getElementById("settings-body");
+  body.innerHTML=personalTabHTML().replace(
+    `<button onclick="showAddPerson()"`,
+    `<div style="display:flex;gap:8px;margin-top:4px;"><input id="new-person-input" autofocus placeholder="Nombre..." style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:14px;outline:none;" onkeydown="if(event.key==='Enter')addPerson()">
+    <button onclick="addPerson()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;">✓</button>
+    <button onclick="renderSettingsBody()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;">✕</button></div>
+    <button style="display:none;" onclick="showAddPerson()"`)
+  ;
+  setTimeout(()=>document.getElementById("new-person-input")?.focus(),50);
+};
+window.addPerson = function(){
+  const n=document.getElementById("new-person-input")?.value.trim();
+  if(!n||STATE.persons.includes(n)) return;
+  const next=[...STATE.persons,n];
+  dbWrite("horario2026/persons",next); showToast(`${n} añadido/a`);
+};
+
+function festivosTabHTML(){
+  const list=Object.entries(STATE.festivos).sort(([a],[b])=>a.localeCompare(b)).map(([fecha,nombre])=>`
+    <div style="display:flex;align-items:center;gap:8px;background:#fef9f0;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;margin-bottom:6px;">
+      <span style="font-size:14px;">🎉</span>
+      <span style="font-size:13px;color:#92400e;font-weight:600;min-width:90px;">${fecha.slice(8)}/${fecha.slice(5,7)}</span>
+      <span style="flex:1;font-size:13px;color:#78350f;">${nombre}</span>
+      <button onclick="removeFestivo('${fecha}')" style="background:none;border:none;color:#fca5a5;cursor:pointer;font-size:14px;">✕</button>
+    </div>`).join("");
+  return `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Festivos — reducen el objetivo semanal</div>
+  <div style="max-height:260px;overflow-y:auto;margin-bottom:12px;">${list}</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <input type="date" id="new-fest-date" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 8px;font-size:13px;">
+    <input id="new-fest-name" placeholder="Nombre del festivo" onkeydown="if(event.key==='Enter')addFestivo()"
+      style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 8px;font-size:13px;outline:none;min-width:120px;">
+    <button onclick="addFestivo()" style="background:#d97706;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Añadir</button>
+  </div>`;
+}
+
+window.removeFestivo = function(fecha){
+  const next={...STATE.festivos}; delete next[fecha];
+  dbWrite("horario2026/festivos",next); showToast("Festivo eliminado");
+};
+window.addFestivo = function(){
+  const fecha=document.getElementById("new-fest-date")?.value;
+  const nombre=document.getElementById("new-fest-name")?.value.trim();
+  if(!fecha||!nombre) return;
+  const next={...STATE.festivos,[fecha]:nombre};
+  dbWrite("horario2026/festivos",next); showToast("🎉 Festivo añadido");
+};
+window.renderSettingsBody = renderSettingsBody;
+
+// ── Online/offline indicator ──────────────────────────────────────────────
+window.addEventListener("online",  ()=>{ document.getElementById("sync-dot").className=""; });
+window.addEventListener("offline", ()=>{ document.getElementById("sync-dot").className="offline"; showToast("⚠️ Sin conexión"); });
+
+// ── Service Worker ────────────────────────────────────────────────────────
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW:",e));
+}
+</script>
+</body>
+</html>
