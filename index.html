@@ -272,6 +272,8 @@ let STATE = {
   targets:   {},   // { personName: hoursPerWeek }
   vacDays:   {},   // { personName: totalDays }
   vacations: {},   // { personName: [fecha,...] }
+  libreDays: {},   // { personName: totalDays }
+  libres:    {},   // { personName: [fecha,...] }
   festivos:  {...FESTIVOS_DEFAULT},
 };
 
@@ -303,6 +305,7 @@ function dbPatch(path, value) {
 }
 
 // Listen to all data in real-time
+let firstLoad = true;
 onValue(ref(db, "horario2026"), (snap) => {
   const data = snap.val() || {};
   STATE.persons   = data.persons   || ["Alejandra","Nayara"];
@@ -310,11 +313,15 @@ onValue(ref(db, "horario2026"), (snap) => {
   STATE.targets   = data.targets   || {};
   STATE.vacDays   = data.vacDays   || {};
   STATE.vacations = data.vacations || {};
+  STATE.libreDays = data.libreDays || {};
+  STATE.libres    = data.libres    || {};
   STATE.festivos  = data.festivos  || {...FESTIVOS_DEFAULT};
   document.getElementById("loading").style.display = "none";
   document.getElementById("app").style.display = "block";
   render();
-  if(modalDay) renderModalBody(); // refresh open modal too
+  if(modalDay) renderModalBody();
+  // Auto-scroll to today only on first load
+  if(firstLoad){ firstLoad=false; setTimeout(scrollToToday, 100); }
 }, { onlyOnce: false });
 
 // Init default data if empty
@@ -339,6 +346,12 @@ function pColor(name){ const i=STATE.persons.indexOf(name); return COLORS[Math.m
 function isWE(dia){ return dia==="sábado"||dia==="domingo"; }
 function getPRec(p,f){ return ((STATE.records[p]||{})[f])||{}; }
 function isVacation(p,f){ return (STATE.vacations[p]||[]).includes(f); }
+function isLibre(p,f){ return (STATE.libres[p]||[]).includes(f); }
+
+function scrollToToday(){
+  const el = document.getElementById("day-"+TODAY);
+  if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); }
+}
 
 function groupByWeek(data){
   const weeks=[]; let cur=null;
@@ -352,7 +365,11 @@ function effectiveTarget(person, days){
   if(workDays.length===0) return 0;
   const hPerDay = target/5;
   let off=0;
-  workDays.forEach(d=>{ if(STATE.festivos[d.fecha]) off++; else if(isVacation(person,d.fecha)) off++; });
+  // Only vacations and libres reduce target — festivos no longer block
+  workDays.forEach(d=>{
+    if(isVacation(person,d.fecha)) off++;
+    else if(isLibre(person,d.fecha)) off++;
+  });
   return Math.max(0,(workDays.length-off)*hPerDay);
 }
 
@@ -362,7 +379,7 @@ function todayRemaining(p,days){
   const tgt=effectiveTarget(p,days); if(tgt==null) return null;
   const bal=tgt-weekDone(p,days); if(bal<=0) return 0;
   const ti=days.findIndex(d=>d.fecha===TODAY); if(ti===-1) return null;
-  const remDays=days.slice(ti).filter(d=>!isWE(d.dia)&&!STATE.festivos[d.fecha]&&!isVacation(p,d.fecha)).length;
+  const remDays=days.slice(ti).filter(d=>!isWE(d.dia)&&!isVacation(p,d.fecha)&&!isLibre(p,d.fecha)).length;
   return remDays>0?bal/remDays:null;
 }
 
@@ -402,8 +419,9 @@ function render(){
 function renderHeader(){
   const sub = document.getElementById("header-sub");
   sub.innerHTML = STATE.persons.map((p,i)=>{
-    const t=STATE.targets[p], vd=STATE.vacDays[p], used=(STATE.vacations[p]||[]).length;
-    return `<span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLORS[i%COLORS.length]};"></span>${p}${t?` ${t}h/sem`:""}${vd?` · 🏖${used}/${vd}d`:""}</span>`;
+    const t=STATE.targets[p], vd=STATE.vacDays[p], ld=STATE.libreDays[p];
+    const vacUsed=(STATE.vacations[p]||[]).length, libreUsed=(STATE.libres[p]||[]).length;
+    return `<span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLORS[i%COLORS.length]};"></span>${p}${t?` ${t}h/sem`:""}${vd?` · 🏖${vacUsed}/${vd}d`:""}${ld?` · 🌴${libreUsed}/${ld}d`:""}</span>`;
   }).join("");
 }
 
@@ -442,30 +460,33 @@ function dayCardHTML(d, week){
   const isToday=d.fecha===TODAY, isWeekend=isWE(d.dia), isFestivo=!!STATE.festivos[d.fecha];
   const anyRec=STATE.persons.some(p=>{const r=getPRec(p,d.fecha);return r.ingreso&&r.salida;});
   const anyVac=STATE.persons.some(p=>isVacation(p,d.fecha));
+  const anyLibre=STATE.persons.some(p=>isLibre(p,d.fecha));
   let borderColor="#e5e7eb", bgColor=isToday?"#eff6ff":isWeekend?"#f9fafb":"#fff";
   if(isToday) borderColor="#2563eb";
-  else if(isFestivo){ borderColor="#fbbf24"; bgColor="#fffbeb"; }
   else if(anyVac){ borderColor="#67e8f9"; bgColor="#f0fdff"; }
+  else if(anyLibre){ borderColor="#a78bfa"; bgColor="#faf5ff"; }
+  else if(isFestivo){ borderColor="#fbbf24"; bgColor="#fffbeb"; }
   else if(anyRec) borderColor="#86efac";
 
   const festLabel = isFestivo?`<div style="font-size:11px;font-weight:700;color:#b45309;">🎉 ${STATE.festivos[d.fecha]}</div>`:"";
   const people = STATE.persons.map((p,i)=>{
-    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida, vac=isVacation(p,d.fecha);
+    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida;
+    const vac=isVacation(p,d.fecha), libre=isLibre(p,d.fecha);
     const c=COLORS[i%COLORS.length];
     const dayRem = isToday&&week ? todayRemaining(p,week.days) : null;
-    const avatarBg = vac?"#67e8f9":has?c:`${c}30`;
-    const avatarColor = vac?"#0e7490":has?"#fff":c;
+    const avatarBg = vac?"#67e8f9":libre?"#a78bfa":has?c:`${c}30`;
+    const avatarColor = vac?"#0e7490":libre?"#fff":has?"#fff":c;
     const text = vac?`<span style="font-size:11px;color:#0e7490;font-weight:600;">🏖 Vacaciones</span>`
+      : libre?`<span style="font-size:11px;color:#7c3aed;font-weight:600;">🌴 Libre</span>`
       : has?`<span style="font-size:12px;color:#374151;">${r.ingreso}→${r.salida} <b style="color:#16a34a;">${fmtH(h)}</b></span>`
-      : isFestivo?`<span style="font-size:11px;color:#9ca3af;">Festivo</span>`
       : `<span style="font-size:12px;color:#d1d5db;">—</span>`;
-    const remBadge = (isToday&&dayRem!==null&&!vac&&!isFestivo)
+    const remBadge = (isToday&&dayRem!==null&&!vac&&!libre)
       ? `<span style="font-size:10px;color:${dayRem<=0?"#16a34a":"#d97706"};font-weight:700;background:${dayRem<=0?"#f0fdf4":"#fffbeb"};border-radius:5px;padding:1px 5px;">${dayRem<=0?"✓":`~${fmtH(dayRem)} hoy`}</span>` : "";
     const noteIcon = r.nota?`<span title="${r.nota}" style="font-size:10px;">💬</span>`:"";
     return `<div class="person-row"><div class="avatar-sm" style="background:${avatarBg};color:${avatarColor};">${ini(p)}</div>${text}${noteIcon}${remBadge}</div>`;
   }).join("");
 
-  return `<div class="day-card" style="background:${bgColor};border-color:${borderColor};border-width:${isToday?"2px":"1.5px"};" onclick="openModal('${d.fecha}')">
+  return `<div id="day-${d.fecha}" class="day-card" style="background:${bgColor};border-color:${borderColor};border-width:${isToday?"2px":"1.5px"};" onclick="openModal('${d.fecha}')">
     <div class="day-num">
       <div class="day-weekday" style="color:${isWeekend?"#9ca3af":"#6b7280"};">${d.dia.slice(0,3)}</div>
       <div class="day-n" style="color:${isToday?"#2563eb":isFestivo?"#b45309":isWeekend?"#9ca3af":"#1e293b"};">${d.fecha.slice(8)}</div>
@@ -511,34 +532,43 @@ function personListHTML(){
   const isFestivo = !!STATE.festivos[d.fecha];
   const week = WEEKS.find(w=>w.days.some(x=>x.fecha===d.fecha));
   const cards = STATE.persons.map((p,i)=>{
-    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida, vac=isVacation(p,d.fecha);
+    const r=getPRec(p,d.fecha), h=calcH(r.ingreso,r.salida), has=r.ingreso&&r.salida;
+    const vac=isVacation(p,d.fecha), libre=isLibre(p,d.fecha);
     const c=COLORS[i%COLORS.length];
     const done=week?weekDone(p,week.days):0, tgt=week?effectiveTarget(p,week.days):null;
     const dayRem=week?todayRemaining(p,week.days):null;
     const vacTotal=STATE.vacDays[p]||null, vacUsed=(STATE.vacations[p]||[]).length;
+    const libreTotal=STATE.libreDays[p]||null, libreUsed=(STATE.libres[p]||[]).length;
     const vacBadge = vacTotal?`<span style="font-size:11px;font-weight:700;color:${vacUsed>vacTotal?"#dc2626":"#0891b2"};background:${vacUsed>vacTotal?"#fef2f2":"#eff6ff"};border:1px solid ${vacUsed>vacTotal?"#fca5a5":"#bfdbfe"};border-radius:6px;padding:1px 7px;white-space:nowrap;">🏖 ${vacUsed}/${vacTotal}d</span>`:"";
-    const avatarBg = vac?"#67e8f9":has?c:`${c}20`;
-    const avatarColor = vac?"#0e7490":has?"#fff":c;
+    const libreBadge = libreTotal?`<span style="font-size:11px;font-weight:700;color:${libreUsed>libreTotal?"#dc2626":"#7c3aed"};background:${libreUsed>libreTotal?"#fef2f2":"#faf5ff"};border:1px solid ${libreUsed>libreTotal?"#fca5a5":"#c4b5fd"};border-radius:6px;padding:1px 7px;white-space:nowrap;">🌴 ${libreUsed}/${libreTotal}d</span>`:"";
+    const avatarBg = vac?"#67e8f9":libre?"#a78bfa":has?c:`${c}20`;
+    const avatarColor = vac?"#0e7490":libre?"#fff":has?"#fff":c;
     const statusText = vac?`<div style="font-size:13px;color:#0e7490;font-weight:600;">🏖 Día de vacaciones</div>`
+      : libre?`<div style="font-size:13px;color:#7c3aed;font-weight:600;">🌴 Día libre</div>`
       : has?`<div style="font-size:13px;color:#64748b;">${r.ingreso} → ${r.salida} · <b style="color:#16a34a;">${fmtH(h)}</b>${r.nota?" · 💬":""}</div>`
-      : `<div style="font-size:13px;color:#94a3b8;">${isFestivo?"Festivo — no laborable":"Sin registrar"}</div>`;
-    const actionBtns = !isFestivo?`<div class="action-btns">
+      : `<div style="font-size:13px;color:#94a3b8;">${isFestivo?"Festivo (laborable)":"Sin registrar"}</div>`;
+    // All days active — festivos included
+    const actionBtns = `<div class="action-btns">
       <button class="btn-hora" style="color:${has?"#fff":c};background:${has?c:`${c}15`};border-color:${c};" onclick="openEdit('${p}')">
         ${has?"✏️ Editar":"+ Hora"}
       </button>
-      ${!isWE(d.dia)?`<button class="btn-vac" style="color:${vac?"#dc2626":"#0891b2"};background:${vac?"#fee2e2":"#e0f2fe"};border-color:${vac?"#fca5a5":"#7dd3fc"};" onclick="toggleVac('${p}','${d.fecha}')">
-        ${vac?"✕ Quitar vac.":"🏖 Marcar vac."}
+      ${!isWE(d.dia)?`
+      <button class="btn-vac" style="color:${vac?"#dc2626":"#0891b2"};background:${vac?"#fee2e2":"#e0f2fe"};border-color:${vac?"#fca5a5":"#7dd3fc"};" onclick="toggleVac('${p}','${d.fecha}')">
+        ${vac?"✕ Quitar vac.":"🏖 Vac."}
+      </button>
+      <button class="btn-vac" style="color:${libre?"#dc2626":"#7c3aed"};background:${libre?"#fee2e2":"#faf5ff"};border-color:${libre?"#fca5a5":"#c4b5fd"};" onclick="toggleLibre('${p}','${d.fecha}')">
+        ${libre?"✕ Quitar libre":"🌴 Libre"}
       </button>`:""}
-    </div>`:"";
+    </div>`;
     const bal = tgt!=null?balBarHTML(done,tgt):"";
-    const dayHint = (tgt!=null&&d.fecha===TODAY&&dayRem!==null&&!vac)
+    const dayHint = (tgt!=null&&d.fecha===TODAY&&dayRem!==null&&!vac&&!libre)
       ?`<div style="font-size:12px;color:${dayRem<=0?"#16a34a":"#d97706"};font-weight:600;">${dayRem<=0?"✅ Horas de la semana completadas":`📅 Para cumplir esta semana: ~${fmtH(dayRem)} hoy`}</div>`:""
     ;
-    return `<div class="person-card" style="background:${vac?"#f0fdff":has?`${c}08`:"#f8fafc"};border-color:${vac?"#67e8f9":has?c:"#e2e8f0"};">
+    return `<div class="person-card" style="background:${vac?"#f0fdff":libre?"#faf5ff":has?`${c}08`:"#f8fafc"};border-color:${vac?"#67e8f9":libre?"#a78bfa":has?c:"#e2e8f0"};">
       <div class="person-card-row">
         <div class="avatar-lg" style="background:${avatarBg};color:${avatarColor};">${ini(p)}</div>
         <div style="flex:1;">
-          <div style="font-weight:700;font-size:15px;color:#0f172a;display:flex;align-items:center;gap:6px;">${p}${vacBadge}</div>
+          <div style="font-weight:700;font-size:15px;color:#0f172a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${p}${vacBadge}${libreBadge}</div>
           ${statusText}
         </div>
         ${actionBtns}
@@ -565,6 +595,13 @@ window.toggleVac = function(person, fecha){
   const next = cur.includes(fecha)?cur.filter(d=>d!==fecha):[...cur,fecha];
   dbWrite(`horario2026/vacations/${person}`, next);
   showToast(next.includes(fecha)?"🏖 Vacaciones marcadas":"✓ Vacaciones quitadas");
+};
+
+window.toggleLibre = function(person, fecha){
+  const cur = STATE.libres[person]||[];
+  const next = cur.includes(fecha)?cur.filter(d=>d!==fecha):[...cur,fecha];
+  dbWrite(`horario2026/libres/${person}`, next);
+  showToast(next.includes(fecha)?"🌴 Día libre marcado":"✓ Libre quitado");
 };
 
 function editFormHTML(){
@@ -675,26 +712,32 @@ function renderSettingsBody(){
 function personalTabHTML(){
   const rows = STATE.persons.map((p,i)=>{
     const c=COLORS[i%COLORS.length];
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <div style="width:34px;height:34px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;flex-shrink:0;">${ini(p)}</div>
       <div style="flex:1;font-weight:600;font-size:14px;min-width:80px;">${p}</div>
-      <div style="display:flex;align-items:center;gap:4px;">
+      <div style="display:flex;align-items:center;gap:4px;" title="Horas por semana">
         <input type="number" min="1" max="80" value="${STATE.targets[p]||""}" placeholder="—"
           onchange="setTarget('${p}',this.value)"
-          style="width:58px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
+          style="width:52px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
         <span style="font-size:11px;color:#94a3b8;">h/sem</span>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;">
-        <span style="font-size:14px;">🏖</span>
+      <div style="display:flex;align-items:center;gap:4px;" title="Días de vacaciones">
+        <span style="font-size:13px;">🏖</span>
         <input type="number" min="0" max="60" value="${STATE.vacDays[p]||""}" placeholder="—"
           onchange="setVacDays('${p}',this.value)"
-          style="width:48px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
-        <span style="font-size:11px;color:#94a3b8;">días</span>
+          style="width:44px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;" title="Días libres">
+        <span style="font-size:13px;">🌴</span>
+        <input type="number" min="0" max="60" value="${STATE.libreDays[p]||""}" placeholder="—"
+          onchange="setLibreDays('${p}',this.value)"
+          style="width:44px;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 6px;font-size:13px;text-align:center;">
       </div>
       <button onclick="removePerson('${p}')" style="background:none;border:none;color:#fca5a5;font-size:15px;cursor:pointer;">🗑</button>
     </div>`;
   }).join("");
-  return `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Horas/semana · Días vacaciones</div>
+  return `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Configuración por persona</div>
+  <div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">⏱ h/sem &nbsp;·&nbsp; 🏖 Vacaciones &nbsp;·&nbsp; 🌴 Días libres</div>
   ${rows}
   <button onclick="showAddPerson()" style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:10px;padding:9px 14px;cursor:pointer;color:#94a3b8;font-size:14px;width:100%;margin-top:4px;">
     <span style="font-size:18px;">+</span> Agregar persona
@@ -703,6 +746,7 @@ function personalTabHTML(){
 
 window.setTarget = function(person,val){ dbPatch("horario2026/targets",{[person]:Number(val)||null}); };
 window.setVacDays = function(person,val){ dbPatch("horario2026/vacDays",{[person]:Number(val)||null}); };
+window.setLibreDays = function(person,val){ dbPatch("horario2026/libreDays",{[person]:Number(val)||null}); };
 window.removePerson = function(person){
   const next=STATE.persons.filter(p=>p!==person);
   dbWrite("horario2026/persons",next); showToast(`${person} eliminado/a`);
