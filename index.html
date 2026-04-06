@@ -361,16 +361,14 @@ function groupByWeek(data){
 
 function effectiveTarget(person, days){
   const target = STATE.targets[person]; if(!target) return null;
-  const workDays = days.filter(d=>!isWE(d.dia));
-  if(workDays.length===0) return 0;
-  const hPerDay = target/5;
+  if(days.length===0) return 0;
+  const hPerDay = target/7; // all 7 days count now
   let off=0;
-  // Only vacations and libres reduce target — festivos no longer block
-  workDays.forEach(d=>{
+  days.forEach(d=>{
     if(isVacation(person,d.fecha)) off++;
     else if(isLibre(person,d.fecha)) off++;
   });
-  return Math.max(0,(workDays.length-off)*hPerDay);
+  return Math.max(0,(days.length-off)*hPerDay);
 }
 
 function weekDone(p,days){ return days.reduce((s,d)=>{ const r=getPRec(p,d.fecha); return s+(calcH(r.ingreso,r.salida)||0); },0); }
@@ -379,7 +377,7 @@ function todayRemaining(p,days){
   const tgt=effectiveTarget(p,days); if(tgt==null) return null;
   const bal=tgt-weekDone(p,days); if(bal<=0) return 0;
   const ti=days.findIndex(d=>d.fecha===TODAY); if(ti===-1) return null;
-  const remDays=days.slice(ti).filter(d=>!isWE(d.dia)&&!isVacation(p,d.fecha)&&!isLibre(p,d.fecha)).length;
+  const remDays=days.slice(ti).filter(d=>!isVacation(p,d.fecha)&&!isLibre(p,d.fecha)).length;
   return remDays>0?bal/remDays:null;
 }
 
@@ -547,18 +545,17 @@ function personListHTML(){
       : libre?`<div style="font-size:13px;color:#7c3aed;font-weight:600;">🌴 Día libre</div>`
       : has?`<div style="font-size:13px;color:#64748b;">${r.ingreso} → ${r.salida} · <b style="color:#16a34a;">${fmtH(h)}</b>${r.nota?" · 💬":""}</div>`
       : `<div style="font-size:13px;color:#94a3b8;">${isFestivo?"Festivo (laborable)":"Sin registrar"}</div>`;
-    // All days active — festivos included
+    // All days active — including weekends and festivos
     const actionBtns = `<div class="action-btns">
       <button class="btn-hora" style="color:${has?"#fff":c};background:${has?c:`${c}15`};border-color:${c};" onclick="openEdit('${p}')">
         ${has?"✏️ Editar":"+ Hora"}
       </button>
-      ${!isWE(d.dia)?`
       <button class="btn-vac" style="color:${vac?"#dc2626":"#0891b2"};background:${vac?"#fee2e2":"#e0f2fe"};border-color:${vac?"#fca5a5":"#7dd3fc"};" onclick="toggleVac('${p}','${d.fecha}')">
         ${vac?"✕ Quitar vac.":"🏖 Vac."}
       </button>
       <button class="btn-vac" style="color:${libre?"#dc2626":"#7c3aed"};background:${libre?"#fee2e2":"#faf5ff"};border-color:${libre?"#fca5a5":"#c4b5fd"};" onclick="toggleLibre('${p}','${d.fecha}')">
         ${libre?"✕ Quitar libre":"🌴 Libre"}
-      </button>`:""}
+      </button>
     </div>`;
     const bal = tgt!=null?balBarHTML(done,tgt):"";
     const dayHint = (tgt!=null&&d.fecha===TODAY&&dayRem!==null&&!vac&&!libre)
