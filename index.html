@@ -138,7 +138,8 @@
     <div id="month-pills"></div>
   </div>
 
-  <div id="list"></div>
+  <div id="monthly-summary"></div>
+<div id="list"></div>
 </div>
 
 <!-- Modal día -->
@@ -373,6 +374,24 @@ function effectiveTarget(person, days){
 
 function weekDone(p,days){ return days.reduce((s,d)=>{ const r=getPRec(p,d.fecha); return s+(calcH(r.ingreso,r.salida)||0); },0); }
 
+function monthDone(p, mesNum){
+  return CALENDAR_DATA.filter(d=>parseInt(d.casa)===mesNum)
+    .reduce((s,d)=>{ const r=getPRec(p,d.fecha); return s+(calcH(r.ingreso,r.salida)||0); },0);
+}
+
+function monthTarget(p, mesNum){
+  const target=STATE.targets[p]; if(!target) return null;
+  const days=CALENDAR_DATA.filter(d=>parseInt(d.casa)===mesNum);
+  const off=days.filter(d=>isVacation(p,d.fecha)||isLibre(p,d.fecha)).length;
+  const hPerDay=target/7;
+  return Math.max(0,(days.length-off)*hPerDay);
+}
+
+function getMonthBalance(p, mesNum){
+  const tgt=monthTarget(p,mesNum); if(tgt==null) return null;
+  return monthDone(p,mesNum)-tgt;
+}
+
 function todayRemaining(p,days){
   const tgt=effectiveTarget(p,days); if(tgt==null) return null;
   const bal=tgt-weekDone(p,days); if(bal<=0) return 0;
@@ -411,7 +430,44 @@ function balBarHTML(done, target, small=false){
 function render(){
   renderHeader();
   renderMonthPills();
+  renderMonthlySummary();
   renderList();
+}
+
+function renderMonthlySummary(){
+  const el = document.getElementById("monthly-summary");
+  if(!el) return;
+  // Show summary for filtered month or current month
+  const mesNum = filterMonth !== null ? filterMonth : parseInt(CALENDAR_DATA.find(d=>d.fecha===TODAY)?.casa||"0");
+  if(!mesNum || mesNum<1 || mesNum>12){ el.innerHTML=""; return; }
+
+  const rows = STATE.persons.map((p,i)=>{
+    const c = COLORS[i%COLORS.length];
+    const done = monthDone(p, mesNum);
+    const tgt = monthTarget(p, mesNum);
+    const bal = tgt!=null ? done-tgt : null;
+    const balColor = bal===null?"#94a3b8":bal>=0?"#16a34a":"#ef4444";
+    const balBg = bal===null?"#f8fafc":bal>=0?"#f0fdf4":"#fef2f2";
+    const pct = tgt&&tgt>0 ? Math.min(100,Math.round(done/tgt*100)) : 0;
+    return `<div class="month-sum-row">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
+        <span style="font-size:13px;font-weight:600;color:#0f172a;">${p}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:80px;background:#e2e8f0;border-radius:4px;height:5px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${c};border-radius:4px;"></div>
+        </div>
+        <span style="font-size:12px;color:#64748b;min-width:50px;text-align:right;">${fmtH(done)}${tgt?"/"+fmtH(tgt):""}</span>
+        <span style="font-size:13px;font-weight:800;color:${balColor};background:${balBg};border-radius:7px;padding:2px 8px;min-width:56px;text-align:center;">${bal!==null?fmtH(bal,true):"—"}</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  el.innerHTML = `<div class="month-sum-card">
+    <div class="month-sum-title">📅 Saldo ${MESES[mesNum]}</div>
+    ${rows}
+  </div>`;
 }
 
 function renderHeader(){
@@ -430,7 +486,7 @@ function renderMonthPills(){
   pills.innerHTML = all+mons;
 }
 
-function setFilter(m){ filterMonth = (m===filterMonth?null:m); renderMonthPills(); renderList(); }
+function setFilter(m){ filterMonth = (m===filterMonth?null:m); renderMonthPills(); renderMonthlySummary(); renderList(); }
 window.setFilter = setFilter;
 
 function renderList(){
@@ -604,37 +660,70 @@ window.toggleLibre = function(person, fecha){
 function editFormHTML(){
   const p = editPerson;
   const c = pColor(p);
-  const week = WEEKS.find(w=>w.days.some(x=>x.fecha===modalDay.fecha));
+  const d = modalDay;
+  const week = WEEKS.find(w=>w.days.some(x=>x.fecha===d.fecha));
   const done = week?weekDone(p,week.days):0;
   const tgt = week?effectiveTarget(p,week.days):null;
   const fIn=window._fIn||"", fOut=window._fOut||"";
-  const [hIn,mIn] = fIn?fIn.split(":"):[" "," "];
-  const [hOut,mOut] = fOut?fOut.split(":"):[" "," "];
-  const hours24 = Array.from({length:24},(_,i)=>String(i).padStart(2,"0"));
-  const mins = ["00","05","10","15","20","25","30","35","40","45","50","55"];
-  const mkHSel = (id,val) => `<select id="${id}" class="time-select">${hours24.map(h=>`<option value="${h}"${h===val?"selected":""}>${h}</option>`).join("")}</select>`;
-  const mkMSel = (id,val) => `<select id="${id}" class="time-select">${mins.map(m=>`<option value="${m}"${m===val?"selected":""}>${m}</option>`).join("")}</select>`;
   const h = calcH(fIn,fOut);
-  const hoursResult = (fIn&&fOut&&h!=null)?`<div class="hours-result">⏱ ${fmtH(h)}</div>`:"<div id='hrs-result'></div>";
-  const balSection = tgt!=null?`<div style="margin-bottom:14px;">${balBarHTML(done,tgt)}</div>`:"";
+  const isVac = isVacation(p,d.fecha);
+  const isLib = isLibre(p,d.fecha);
+  const isFest = !!STATE.festivos[d.fecha];
+
+  // barra semanal
+  const balSection = tgt!=null?`<div style="margin-bottom:16px;">${balBarHTML(done,tgt)}</div>`:"";
+
+  // saldo mensual
+  const mesNum = parseInt(d.casa);
+  const monthBal = getMonthBalance(p, mesNum);
+  const monthBalHTML = monthBal!==null ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:10px 14px;margin-bottom:16px;">
+      <span style="font-size:12px;color:#64748b;font-weight:600;">Saldo mensual (${MESES[mesNum]})</span>
+      <span style="font-size:15px;font-weight:800;color:${monthBal>=0?"#16a34a":"#ef4444"};">${fmtH(monthBal,true)}</span>
+    </div>` : "";
+
+  // pill de horas
+  const hoursPill = (fIn&&fOut&&h!=null) ? `
+    <div class="hours-pill">
+      <span class="hours-pill-num">⏱ ${fmtH(h)}</span>
+      <span class="hours-pill-label">horas trabajadas</span>
+    </div>` : `<div style="height:8px;"></div>`;
+
   return `<div class="form-section">
-    <button class="back-btn" onclick="backToList()">← Volver</button>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <div class="avatar-lg" style="background:${c};color:#fff;">${ini(p)}</div>
-      <div style="font-weight:700;font-size:17px;">${p}</div>
-    </div>
-    ${balSection}
-    <div class="time-row">
-      <div class="time-col">
-        <div class="time-label">Ingreso</div>
-        <div class="time-selects">${mkHSel("sel-hIn",hIn)} <span style="font-weight:800;color:#94a3b8;font-size:18px;">:</span> ${mkMSel("sel-mIn",mIn)}</div>
-      </div>
-      <div class="time-col">
-        <div class="time-label">Salida</div>
-        <div class="time-selects">${mkHSel("sel-hOut",hOut)} <span style="font-weight:800;color:#94a3b8;font-size:18px;">:</span> ${mkMSel("sel-mOut",mOut)}</div>
+    <button class="back-btn" onclick="backToList()">‹ Volver</button>
+    <div class="person-hero">
+      <div class="avatar-hero" style="background:${c};color:#fff;">${ini(p)}</div>
+      <div>
+        <div class="person-hero-name">${p}</div>
+        <div class="person-hero-sub">${d.dia.charAt(0).toUpperCase()+d.dia.slice(1)} ${d.fecha.slice(8)} · ${MESES[mesNum]||d.casa}</div>
       </div>
     </div>
-    <div id="hrs-display">${hoursResult}</div>
+    ${balSection}${monthBalHTML}
+    <div class="time-blocks">
+      <div class="time-block ${fIn?"has-value":""}" id="block-in">
+        <div class="time-block-label">🟢 Entrada</div>
+        <input type="time" id="inp-in" value="${fIn}" oninput="onTimeInput()">
+      </div>
+      <div class="time-block ${fOut?"has-value":""}" id="block-out">
+        <div class="time-block-label">🔴 Salida</div>
+        <input type="time" id="inp-out" value="${fOut}" oninput="onTimeInput()">
+      </div>
+    </div>
+    <div id="hrs-display">${hoursPill}</div>
+    <div class="status-btns">
+      <button class="status-btn ${isVac?"active-vac":""}" onclick="toggleVacForm()">
+        <span class="status-btn-icon">🏖</span>
+        <span>${isVac?"Vacaciones ✓":"Vacaciones"}</span>
+      </button>
+      <button class="status-btn ${isLib?"active-libre":""}" onclick="toggleLibreForm()">
+        <span class="status-btn-icon">🌴</span>
+        <span>${isLib?"Libre ✓":"Día libre"}</span>
+      </button>
+      <button class="status-btn ${isFest?"active-fest":""}" onclick="toggleFestForm()">
+        <span class="status-btn-icon">🎉</span>
+        <span>${isFest?"Festivo ✓":"Festivo"}</span>
+      </button>
+    </div>
     <div class="note-label">Nota</div>
     <textarea id="edit-note" rows="2" placeholder="Opcional...">${window._fNote||""}</textarea>
     <div class="form-btns">
@@ -645,29 +734,52 @@ function editFormHTML(){
 }
 
 function attachEditListeners(){
-  ["sel-hIn","sel-mIn","sel-hOut","sel-mOut"].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.addEventListener("change", updateHoursPreview);
-  });
-  updateHoursPreview();
+  // input type="time" — no extra listeners needed, handled by oninput
 }
 
-function updateHoursPreview(){
-  const hIn=document.getElementById("sel-hIn")?.value;
-  const mIn=document.getElementById("sel-mIn")?.value;
-  const hOut=document.getElementById("sel-hOut")?.value;
-  const mOut=document.getElementById("sel-mOut")?.value;
-  window._fIn = (hIn&&mIn&&hIn.trim()&&mIn.trim())?`${hIn}:${mIn}`:"";
-  window._fOut = (hOut&&mOut&&hOut.trim()&&mOut.trim())?`${hOut}:${mOut}`:"";
-  const h=calcH(window._fIn,window._fOut);
-  const el=document.getElementById("hrs-display");
-  if(el) el.innerHTML = (window._fIn&&window._fOut&&h!=null)?`<div class="hours-result">⏱ ${fmtH(h)}</div>`:"";
-}
+window.onTimeInput = function(){
+  const fIn = document.getElementById("inp-in")?.value||"";
+  const fOut = document.getElementById("inp-out")?.value||"";
+  window._fIn = fIn; window._fOut = fOut;
+  // update block styling
+  const bIn = document.getElementById("block-in");
+  const bOut = document.getElementById("block-out");
+  if(bIn) bIn.className = "time-block"+(fIn?" has-value":"");
+  if(bOut) bOut.className = "time-block"+(fOut?" has-value":"");
+  // update hours pill
+  const h = calcH(fIn,fOut);
+  const el = document.getElementById("hrs-display");
+  if(el) el.innerHTML = (fIn&&fOut&&h!=null)
+    ? `<div class="hours-pill"><span class="hours-pill-num">⏱ ${fmtH(h)}</span><span class="hours-pill-label">horas trabajadas</span></div>`
+    : `<div style="height:8px;"></div>`;
+};
+
+window.toggleVacForm = function(){
+  toggleVac(editPerson, modalDay.fecha);
+  setTimeout(()=>renderModalBody(),300);
+};
+window.toggleLibreForm = function(){
+  toggleLibre(editPerson, modalDay.fecha);
+  setTimeout(()=>renderModalBody(),300);
+};
+window.toggleFestForm = function(){
+  const fecha = modalDay.fecha;
+  if(STATE.festivos[fecha]){
+    const next={...STATE.festivos}; delete next[fecha];
+    dbWrite("horario2026/festivos",next); showToast("Festivo eliminado");
+  } else {
+    const nombre = prompt("Nombre del festivo:","Festivo");
+    if(nombre){ dbWrite("horario2026/festivos",{...STATE.festivos,[fecha]:nombre}); showToast("🎉 Festivo añadido"); }
+  }
+  setTimeout(()=>renderModalBody(),300);
+};
 
 window.backToList = function(){ editPerson=null; renderModalBody(); };
 
 window.doSave = function(){
-  const fIn=window._fIn, fOut=window._fOut, fNote=document.getElementById("edit-note")?.value||"";
+  const fIn=document.getElementById("inp-in")?.value||window._fIn||"";
+  const fOut=document.getElementById("inp-out")?.value||window._fOut||"";
+  const fNote=document.getElementById("edit-note")?.value||"";
   const rec = {ingreso:fIn, salida:fOut, nota:fNote};
   dbPatch(`horario2026/records/${editPerson}`, {[modalDay.fecha]:rec});
   const btn=document.getElementById("btn-save");
