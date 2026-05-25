@@ -8,6 +8,9 @@
   <meta name="apple-mobile-web-app-title" content="Horario 2026"/>
   <meta name="theme-color" content="#1e293b"/>
   <title>Horario 2026</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <style>
@@ -59,10 +62,10 @@
 
     /* Modal */
     #modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:999;}
-    #modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:min(520px,100%);max-height:92vh;overflow-y:auto;padding-bottom:32px;}
-    #modal-header{padding:18px 20px 12px;border-bottom:1.5px solid #f1f5f9;position:sticky;top:0;background:#fff;border-radius:20px 20px 0 0;z-index:2;}
+    #modal-sheet{background:#fff;border-radius:24px 24px 0 0;width:min(520px,100%);max-height:92vh;overflow-y:auto;padding-bottom:32px;}
+    #modal-header{padding:20px 20px 14px;border-bottom:1.5px solid #f1f5f9;position:sticky;top:0;background:#fff;border-radius:24px 24px 0 0;z-index:2;}
     .close-btn{background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;color:#64748b;display:flex;align-items:center;justify-content:center;}
-    .person-card{border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-width:1.5px;border-style:solid;}
+    .person-card{border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;border-width:2px;border-style:solid;}
     .person-card-row{display:flex;align-items:center;gap:10;}
     .avatar-lg{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;}
     .action-btns{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
@@ -81,8 +84,37 @@
     .note-label{font-size:11px;color:#6b7280;margin-bottom:4px;font-weight:700;text-transform:uppercase;}
     textarea{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;font-size:14px;resize:vertical;}
     .form-btns{display:flex;gap:8px;margin-top:16px;}
-    .btn-save{flex:1;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:15px;transition:background 0.2s;}
-    .btn-clear{background:#fff;color:#ef4444;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 16px;font-weight:600;font-size:14px;}
+    .btn-save{flex:1;color:#fff;border:none;border-radius:14px;padding:16px;font-weight:800;font-size:17px;transition:background 0.2s;box-shadow:0 2px 10px rgba(0,0,0,0.15);}
+    .btn-clear{background:#fff;color:#ef4444;border:2px solid #fca5a5;border-radius:14px;padding:16px 18px;font-weight:700;font-size:15px;}
+
+    /* ── NEW: Time blocks ── */
+    .time-blocks{display:flex;gap:10px;margin-bottom:12px;}
+    .time-block{flex:1;border:2px solid #e2e8f0;border-radius:14px;padding:14px 10px;text-align:center;background:#f8fafc;transition:all 0.15s;}
+    .time-block.has-value{border-color:#86efac;background:#f0fdf4;}
+    .time-block-label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;}
+    .time-block input[type=time]{border:none;background:transparent;font-size:22px;font-weight:800;color:#0f172a;text-align:center;width:100%;outline:none;}
+    .hours-pill{display:flex;align-items:center;justify-content:center;gap:8px;background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:10px 16px;margin-bottom:14px;}
+    .hours-pill-num{font-size:20px;font-weight:800;color:#16a34a;}
+    .hours-pill-label{font-size:13px;color:#64748b;font-weight:500;}
+
+    /* ── NEW: Person hero in edit form ── */
+    .person-hero{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+    .avatar-hero{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0;}
+    .person-hero-name{font-size:18px;font-weight:800;color:#0f172a;}
+    .person-hero-sub{font-size:13px;color:#64748b;text-transform:capitalize;}
+
+    /* ── NEW: Status buttons in edit form ── */
+    .status-btns{display:flex;gap:8px;margin-bottom:14px;}
+    .status-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border-radius:12px;border:2px solid #e2e8f0;background:#f8fafc;padding:10px 6px;font-size:12px;font-weight:700;color:#64748b;cursor:pointer;transition:all 0.15s;}
+    .status-btn.active-vac{border-color:#67e8f9;background:#ecfeff;color:#0891b2;}
+    .status-btn.active-libre{border-color:#c4b5fd;background:#faf5ff;color:#7c3aed;}
+    .status-btn.active-fest{border-color:#fcd34d;background:#fffbeb;color:#d97706;}
+    .status-btn-icon{font-size:18px;}
+
+    /* ── NEW: Monthly summary card ── */
+    .month-sum-card{background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:12px 16px;margin:0 12px 10px;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+    .month-sum-title{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+    .month-sum-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;}
 
     /* Balance bar */
     .bal-bar{border-radius:10px;padding:8px 12px;border-width:1.5px;border-style:solid;}
@@ -117,7 +149,7 @@
 <div id="loading">
   <div class="spinner"></div>
   <h1>📋 Horario 2026</h1>
-  <p>Conectando...</p>
+  <p>Conectando... v2</p>
 </div>
 
 <div id="toast"></div>
@@ -602,31 +634,34 @@ function personListHTML(){
       : has?`<div style="font-size:13px;color:#64748b;">${r.ingreso} → ${r.salida} · <b style="color:#16a34a;">${fmtH(h)}</b>${r.nota?" · 💬":""}</div>`
       : `<div style="font-size:13px;color:#94a3b8;">${isFestivo?"Festivo (laborable)":"Sin registrar"}</div>`;
     // All days active — including weekends and festivos
-    const actionBtns = `<div class="action-btns">
-      <button class="btn-hora" style="color:${has?"#fff":c};background:${has?c:`${c}15`};border-color:${c};" onclick="openEdit('${p}')">
-        ${has?"✏️ Editar":"+ Hora"}
+    const actionBtns = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+      <button style="width:100%;padding:14px;border-radius:14px;border:none;font-size:16px;font-weight:800;color:#fff;background:${has?"#16a34a":c};display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 2px 8px ${has?"#16a34a40":c+"40"};" onclick="openEdit('${p}')">
+        <span style="font-size:20px;">${has?"✏️":"✓"}</span>
+        ${has?"Editar horas":"Registrar horas"}
       </button>
-      <button class="btn-vac" style="color:${vac?"#dc2626":"#0891b2"};background:${vac?"#fee2e2":"#e0f2fe"};border-color:${vac?"#fca5a5":"#7dd3fc"};" onclick="toggleVac('${p}','${d.fecha}')">
-        ${vac?"✕ Quitar vac.":"🏖 Vac."}
-      </button>
-      <button class="btn-vac" style="color:${libre?"#dc2626":"#7c3aed"};background:${libre?"#fee2e2":"#faf5ff"};border-color:${libre?"#fca5a5":"#c4b5fd"};" onclick="toggleLibre('${p}','${d.fecha}')">
-        ${libre?"✕ Quitar libre":"🌴 Libre"}
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button style="flex:1;padding:12px 6px;border-radius:12px;border:none;font-size:13px;font-weight:700;color:${vac?"#fff":"#0891b2"};background:${vac?"#0891b2":"#e0f2fe"};display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;" onclick="toggleVac('${p}','${d.fecha}')">
+          🏖 ${vac?"Quitar vac.":"Vacaciones"}
+        </button>
+        <button style="flex:1;padding:12px 6px;border-radius:12px;border:none;font-size:13px;font-weight:700;color:${libre?"#fff":"#7c3aed"};background:${libre?"#7c3aed":"#f3e8ff"};display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;" onclick="toggleLibre('${p}','${d.fecha}')">
+          🌴 ${libre?"Quitar libre":"Día libre"}
+        </button>
+      </div>
     </div>`;
     const bal = tgt!=null?balBarHTML(done,tgt):"";
     const dayHint = (tgt!=null&&d.fecha===TODAY&&dayRem!==null&&!vac&&!libre)
       ?`<div style="font-size:12px;color:${dayRem<=0?"#16a34a":"#d97706"};font-weight:600;">${dayRem<=0?"✅ Horas de la semana completadas":`📅 Para cumplir esta semana: ~${fmtH(dayRem)} hoy`}</div>`:""
     ;
     return `<div class="person-card" style="background:${vac?"#f0fdff":libre?"#faf5ff":has?`${c}08`:"#f8fafc"};border-color:${vac?"#67e8f9":libre?"#a78bfa":has?c:"#e2e8f0"};">
-      <div class="person-card-row">
+      <div class="person-card-row" style="margin-bottom:4px;">
         <div class="avatar-lg" style="background:${avatarBg};color:${avatarColor};">${ini(p)}</div>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:15px;color:#0f172a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${p}${vacBadge}${libreBadge}</div>
           ${statusText}
         </div>
-        ${actionBtns}
       </div>
       ${bal}${dayHint}
+      ${actionBtns}
     </div>`;
   }).join("");
   return `<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px;">
