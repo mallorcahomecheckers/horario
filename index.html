@@ -162,6 +162,7 @@
         <div id="header-sub"></div>
       </div>
       <div id="sync-dot" title="Sincronizado"></div>
+      <button id="report-btn" onclick="openReport()" style="background:#334155;border:none;border-radius:8px;padding:7px 12px;color:#94a3b8;font-size:14px;flex-shrink:0;margin-right:6px;">📊</button>
       <button id="settings-btn" onclick="openSettings()">⚙️</button>
     </div>
   </div>
@@ -202,6 +203,36 @@
       <button class="tab-btn inactive" onclick="switchTab('festivos')" id="tab-festivos">🎉 Festivos</button>
     </div>
     <div id="settings-body" style="padding:16px 20px;"></div>
+  </div>
+</div>
+
+<!-- Modal Reporte de Saldo -->
+<div id="report-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);align-items:flex-end;justify-content:center;z-index:999;" onclick="handleReportBackdrop(event)">
+  <div id="report-sheet" style="background:#fff;border-radius:24px 24px 0 0;width:min(520px,100%);max-height:92vh;overflow-y:auto;padding-bottom:32px;">
+    <div style="padding:20px 20px 14px;border-bottom:1.5px solid #f1f5f9;position:sticky;top:0;background:#fff;border-radius:24px 24px 0 0;z-index:2;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:800;font-size:20px;color:#0f172a;">📊 Reporte de Saldo</div>
+        <button class="close-btn" onclick="closeReport()">✕</button>
+      </div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px;">Horas trabajadas vs acordadas en un período</div>
+    </div>
+    <div style="padding:16px 20px;">
+      <!-- Selector de rango -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:120px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:5px;">Desde</div>
+          <input type="date" id="rep-from" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 10px;font-size:14px;outline:none;" oninput="calcReport()">
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:5px;">Hasta</div>
+          <input type="date" id="rep-to" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 10px;font-size:14px;outline:none;" oninput="calcReport()">
+        </div>
+      </div>
+      <!-- Atajos rápidos -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;" id="rep-shortcuts"></div>
+      <!-- Resultados -->
+      <div id="rep-results"></div>
+    </div>
   </div>
 </div>
 
@@ -947,6 +978,183 @@ window.renderSettingsBody = renderSettingsBody;
 // ── Online/offline indicator ──────────────────────────────────────────────
 window.addEventListener("online",  ()=>{ document.getElementById("sync-dot").className=""; });
 window.addEventListener("offline", ()=>{ document.getElementById("sync-dot").className="offline"; showToast("⚠️ Sin conexión"); });
+
+// ── Reporte de Saldo ──────────────────────────────────────────────────────
+window.openReport = function(){
+  const bd = document.getElementById("report-backdrop");
+  bd.style.display = "flex";
+  document.body.style.overflow = "hidden";
+
+  // Defaults: semana pasada
+  const today = new Date();
+  const dow = today.getDay(); // 0=dom
+  const diffToMon = (dow === 0 ? -6 : 1 - dow);
+  const thisMonday = new Date(today); thisMonday.setDate(today.getDate() + diffToMon);
+  const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7);
+  const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate() - 1);
+
+  document.getElementById("rep-from").value = fmtDateVal(lastMonday);
+  document.getElementById("rep-to").value   = fmtDateVal(lastSunday);
+
+  renderShortcuts();
+  calcReport();
+};
+
+window.closeReport = function(){
+  document.getElementById("report-backdrop").style.display = "none";
+  document.body.style.overflow = "";
+};
+
+window.handleReportBackdrop = function(e){
+  if(e.target === document.getElementById("report-backdrop")) closeReport();
+};
+
+function fmtDateVal(d){
+  return d.toISOString().slice(0,10);
+}
+
+function fmtDateLabel(s){
+  const [y,m,d] = s.split("-");
+  const months = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  return `${parseInt(d)} ${months[parseInt(m)]}`;
+}
+
+function renderShortcuts(){
+  const today = new Date();
+  const dow = today.getDay();
+  const diffToMon = (dow === 0 ? -6 : 1 - dow);
+  const thisMonday = new Date(today); thisMonday.setDate(today.getDate() + diffToMon);
+  const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7);
+  const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate() - 1);
+
+  // Mes actual
+  const mesActualStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const mesActualEnd   = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  // Mes anterior
+  const mesAntStart = new Date(today.getFullYear(), today.getMonth()-1, 1);
+  const mesAntEnd   = new Date(today.getFullYear(), today.getMonth(), 0);
+
+  const shortcuts = [
+    { label: "Semana pasada", from: fmtDateVal(lastMonday),    to: fmtDateVal(lastSunday) },
+    { label: "Esta semana",   from: fmtDateVal(thisMonday),    to: fmtDateVal(today) },
+    { label: "Este mes",      from: fmtDateVal(mesActualStart),to: fmtDateVal(mesActualEnd) },
+    { label: "Mes anterior",  from: fmtDateVal(mesAntStart),   to: fmtDateVal(mesAntEnd) },
+  ];
+
+  const container = document.getElementById("rep-shortcuts");
+  container.innerHTML = shortcuts.map(s => `
+    <button onclick="setReportRange('${s.from}','${s.to}')"
+      style="background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:20px;padding:5px 12px;
+             font-size:12px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;">
+      ${s.label}
+    </button>`).join("");
+}
+
+window.setReportRange = function(from, to){
+  document.getElementById("rep-from").value = from;
+  document.getElementById("rep-to").value   = to;
+  calcReport();
+};
+
+window.calcReport = function(){
+  const from = document.getElementById("rep-from").value;
+  const to   = document.getElementById("rep-to").value;
+  const el   = document.getElementById("rep-results");
+
+  if(!from || !to || from > to){
+    el.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px;">Selecciona un rango de fechas válido</div>`;
+    return;
+  }
+
+  // Filtrar días del calendario en el rango
+  const days = CALENDAR_DATA.filter(d => d.fecha >= from && d.fecha <= to);
+  if(days.length === 0){
+    el.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px;">No hay días en ese rango</div>`;
+    return;
+  }
+
+  // Contar días naturales y semanas
+  const totalDias = days.length;
+
+  let html = `<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">
+    ${fmtDateLabel(from)} – ${fmtDateLabel(to)} &nbsp;·&nbsp; ${totalDias} días
+  </div>`;
+
+  STATE.persons.forEach((person, i) => {
+    const color = COLORS[i % COLORS.length];
+    const ini = person.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);
+    const target = STATE.targets[person];
+
+    // Horas trabajadas en el rango
+    const pRecs = STATE.records[person] || {};
+    let worked = 0;
+    let diasTrabajados = 0;
+    days.forEach(d => {
+      const r = pRecs[d.fecha] || {};
+      const h = calcH(r.ingreso, r.salida);
+      if(h) { worked += h; diasTrabajados++; }
+    });
+
+    // Días off (vacaciones + libres) en el rango
+    const vacDays = (STATE.vacations[person] || []).filter(f => f >= from && f <= to).length;
+    const libreDays = (STATE.libres[person] || []).filter(f => f >= from && f <= to).length;
+    // Objetivo = contrato exacto proporcional al rango (SIN descontar días libres/vac)
+    let objetivo = null;
+    if(target){
+      objetivo = (target / 7) * totalDias;
+    }
+
+    const diff = objetivo !== null ? worked - objetivo : null;
+    const over = diff !== null && diff >= -0.01;
+
+    const badgeBg     = diff === null ? "#f8fafc" : over ? "#f0fdf4" : "#fef2f2";
+    const badgeColor  = diff === null ? "#94a3b8" : over ? "#16a34a" : "#dc2626";
+    const badgeBorder = diff === null ? "#e2e8f0" : over ? "#86efac" : "#fca5a5";
+    const diffLabel   = diff === null ? "Sin objetivo"
+                      : over ? `✅ ${fmtH(diff, true)} extra`
+                      : `⏳ ${fmtH(Math.abs(diff))} pendiente`;
+
+    // Barra de progreso
+    const pct = objetivo && objetivo > 0 ? Math.min(100, Math.round(worked/objetivo*100)) : 0;
+    const barFill = `<div style="height:5px;background:#e2e8f0;border-radius:4px;margin:8px 0 4px;overflow:hidden;">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;"></div></div>`;
+
+    // Badges de días off
+    const offBadges = [
+      vacDays   > 0 ? `<span style="font-size:11px;background:#e0f2fe;color:#0891b2;border-radius:6px;padding:1px 7px;font-weight:700;">🏖 ${vacDays}d vac</span>` : "",
+      libreDays > 0 ? `<span style="font-size:11px;background:#faf5ff;color:#7c3aed;border-radius:6px;padding:1px 7px;font-weight:700;">🌴 ${libreDays}d libre</span>` : "",
+    ].filter(Boolean).join(" ");
+
+    html += `
+    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:14px 16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:${color};color:#fff;
+                    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;">${ini}</div>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:15px;color:#0f172a;">${person}</div>
+          <div style="font-size:11px;color:#94a3b8;">${target ? target+"h/sem acordadas" : "Sin objetivo"}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;color:#94a3b8;">Trabajadas</div>
+          <div style="font-size:18px;font-weight:800;color:#0f172a;">${fmtH(worked)}</div>
+        </div>
+      </div>
+      ${barFill}
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:11px;color:#64748b;">Objetivo: <b style="color:#0f172a;">${objetivo !== null ? fmtH(objetivo) : "—"}</b></span>
+          ${offBadges}
+        </div>
+        <div style="background:${badgeBg};border:1.5px solid ${badgeBorder};border-radius:8px;
+                    padding:5px 12px;font-size:13px;font-weight:700;color:${badgeColor};white-space:nowrap;">
+          ${diffLabel}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html;
+};
 
 // ── Service Worker ────────────────────────────────────────────────────────
 if("serviceWorker" in navigator){
